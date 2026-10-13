@@ -17,10 +17,11 @@ async function request(path, options = {}) {
 
 export const api = {
   loadDemoSRS: () => request('/demo-srs').then(r => r.json()),
-  uploadDocument: (file, threshold = 0.85) => {
+  uploadDocument: (file, threshold) => {
     const fd = new FormData();
     fd.append('file', file);
-    fd.append('threshold', threshold);
+    // Omitted threshold -> the backend uses the saved Settings value.
+    if (threshold != null) fd.append('threshold', threshold);
     return request('/upload', { method: 'POST', body: fd }).then(r => r.json());
   },
   analyzeText: (text, documentName = 'Pasted SRS') =>
@@ -70,4 +71,11 @@ export const api = {
   exportReport: (format) => request(`/export/${format}`),
   getCorrectedSRS: () => request('/corrected-srs').then(r => r.json()),
   exportCorrectedSRS: (format) => request(`/export/corrected/${format}`).then(r => r.blob()),
+  listHistory: (limit = 50) => request(`/history?limit=${limit}`).then(r => r.json()),
+  activateRun: (runId) =>
+    request(`/history/${encodeURIComponent(runId)}/activate`, { method: 'POST' }).then(r => r.json()),
+  deleteRun: (runId) =>
+    request(`/history/${encodeURIComponent(runId)}`, { method: 'DELETE' }).then(r => r.json()),
+  compareRuns: (base, target) =>
+    request(`/compare?${new URLSearchParams({ base, target })}`).then(r => r.json()),
 };

@@ -59,6 +59,13 @@ _NUMBER_PATTERN = re.compile(
 )
 
 
+_ATTRIBUTE_ORDER = [definition["name"] for definition in ATTRIBUTE_DEFINITIONS]
+_COMPILED_DEFINITIONS = [
+    {**definition, "regex": re.compile("|".join(f"(?:{p})" for p in definition["patterns"]))}
+    for definition in ATTRIBUTE_DEFINITIONS
+]
+
+
 class ConflictService:
     """Detect incompatible constraints using table-driven attribute extraction."""
 
@@ -68,11 +75,25 @@ class ConflictService:
         sim_matrix: Optional[np.ndarray] = None,
     ) -> List[Dict[str, Any]]:
         conflicts = []
-        for i, req_a in enumerate(requirements):
-            for j in range(i + 1, len(requirements)):
-                req_b = requirements[j]
-                similarity = float(sim_matrix[i][j]) if sim_matrix is not None else 0.5
-                conflict_info = self.check_pair_conflict(req_a["text"], req_b["text"], similarity)
+        # Attribute values are extracted once per requirement (O(n)) instead of
+        # once per pair (O(n^2)); only requirements sharing an attribute are compared.
+        extracted = [self._extract_values(req["text"]) for req in requirements]
+        by_attribute: Dict[str, List[int]] = {}
+        for idx, values in enumerate(extracted):
+            for attribute in values:
+                by_attribute.setdefault(attribute, []).append(idx)
+
+        candidate_pairs = set()
+        for indices in by_attribute.values():
+            for pos, i in enumerate(indices):
+                for j in indices[pos + 1:]:
+                    candidate_pairs.add((i, j))
+
+        for i, j in sorted(candidate_pairs):
+            req_a = requirements[i]
+            req_b = requirements[j]
+            conflict_info = self._compare_values(extracted[i], extracted[j])
+            if conflict_info:
                 if conflict_info:
                     conflicts.append({
                         "req_a_id": req_a["id"],
@@ -86,10 +107,13 @@ class ConflictService:
     def check_pair_conflict(
         self, text_a: str, text_b: str, similarity: float
     ) -> Optional[Dict[str, Any]]:
-        values_a = self._extract_values(text_a)
-        values_b = self._extract_values(text_b)
+        return self._compare_values(self._extract_values(text_a), self._extract_values(text_b))
 
-        for attribute in values_a.keys() & values_b.keys():
+    def _compare_values(
+        self, values_a: Dict[str, Dict[str, Any]], values_b: Dict[str, Dict[str, Any]]
+    ) -> Optional[Dict[str, Any]]:
+        # Iterate in definition order so the reported attribute is deterministic.
+        for attribute in [name for name in _ATTRIBUTE_ORDER if name in values_a and name in values_b]:
             value_a = values_a[attribute]
             value_b = values_b[attribute]
             if value_a.get("numeric") and value_b.get("numeric"):
@@ -133,8 +157,8 @@ class ConflictService:
     def _extract_values(self, text: str) -> Dict[str, Dict[str, Any]]:
         lowered = text.lower()
         values: Dict[str, Dict[str, Any]] = {}
-        for definition in ATTRIBUTE_DEFINITIONS:
-            if not any(re.search(pattern, lowered) for pattern in definition["patterns"]):
+        for definition in _COMPILED_DEFINITIONS:
+            if not definition["regex"].search(lowered):
                 continue
 
             number = self._extract_number(lowered, definition["unit_pattern"])

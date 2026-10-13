@@ -4,7 +4,7 @@ import json
 import re
 from html import escape
 from typing import Dict, Any, List
-from datetime import datetime
+from datetime import datetime, timezone
 
 from docx import Document
 from docx.enum.table import WD_TABLE_ALIGNMENT
@@ -95,7 +95,7 @@ class ReportGenerator:
         elements.append(Paragraph("ReqInsight AI — Software Requirement Analysis Report", title_style))
         elements.append(Paragraph(
             f"<b>Document:</b> {analysis_data.get('document_name', 'SRS Document')} &nbsp;|&nbsp; "
-            f"<b>Date:</b> {datetime.utcnow().strftime('%Y-%m-%d %H:%M UTC')} &nbsp;|&nbsp; "
+            f"<b>Date:</b> {datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M UTC')} &nbsp;|&nbsp; "
             f"<b>Evaluation Engine:</b> NLP & LLM Academic Pipeline",
             subtitle_style
         ))

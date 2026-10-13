@@ -3,7 +3,7 @@ import { NavLink, Outlet } from 'react-router-dom';
 import {
   LayoutDashboard, Upload, FileText, Copy, AlertTriangle,
   Star, Sparkles, BookOpen, Settings, ChevronLeft, ChevronRight,
-  Activity, Zap
+  Activity, Zap, History
 } from 'lucide-react';
 import { useAnalysis } from '../context/AnalysisContext';
 
@@ -16,6 +16,7 @@ const NAV_ITEMS = [
   { to: '/quality', icon: Star, label: 'Quality Analysis' },
   { to: '/artifacts', icon: Sparkles, label: 'Generated Artifacts' },
   { to: '/report', icon: BookOpen, label: 'Report' },
+  { to: '/history', icon: History, label: 'History & Compare' },
   { to: '/evaluation', icon: Activity, label: 'Evaluation Metrics' },
   { to: '/settings', icon: Settings, label: 'Settings' },
 ];

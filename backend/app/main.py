@@ -31,17 +31,21 @@ app = FastAPI(
     lifespan=lifespan
 )
 
-# CORS configuration for React Vite frontend
+# CORS configuration for the React Vite frontend. Override with a comma-separated
+# REQINSIGHT_CORS_ORIGINS; a wildcard is not combined with credentials.
+DEFAULT_CORS_ORIGINS = [
+    "http://localhost:5173",
+    "http://localhost:5174",
+    "http://127.0.0.1:5173",
+    "http://localhost:3000",
+]
+_env_origins = [o.strip() for o in os.getenv("REQINSIGHT_CORS_ORIGINS", "").split(",") if o.strip()]
+cors_origins = _env_origins or DEFAULT_CORS_ORIGINS
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[
-        "http://localhost:5173",
-        "http://localhost:5174",
-        "http://127.0.0.1:5173",
-        "http://localhost:3000",
-        "*"
-    ],
-    allow_credentials=True,
+    allow_origins=cors_origins,
+    allow_credentials="*" not in cors_origins,
     allow_methods=["*"],
     allow_headers=["*"],
 )
@@ -71,6 +75,7 @@ def root():
             "IEEE 830 Rewriting & Agile User Story Generation",
             "Gherkin Given-When-Then Acceptance Criteria",
             "Executive PDF, JSON, and CSV Report Export",
+            "Analysis History & Run-to-Run Comparison",
             "One-Click Professor Demo Mode"
         ]
     }

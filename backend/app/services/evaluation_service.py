@@ -1,11 +1,15 @@
 import json
+import threading
 from pathlib import Path
-from typing import Dict, Any, List
+from typing import Dict, Any, List, Optional
 import numpy as np
 from sklearn.metrics import accuracy_score, precision_recall_fscore_support
 from backend.app.ml.classification_service import ClassificationService
 from backend.app.ml.ambiguity_service import AmbiguityService
 from backend.app.ml.similarity_service import SimilarityService
+
+
+DUPLICATE_THRESHOLD = 0.78
 
 
 class EvaluationService:
@@ -29,6 +33,8 @@ class EvaluationService:
         self.ambiguity_service = AmbiguityService()
         self.similarity_service = SimilarityService()
         self.benchmark_ambiguity_set, self.benchmark_duplicates_set = self._load_benchmark()
+        self._cached: Optional[Dict[str, Any]] = None
+        self._lock = threading.Lock()
 
     @classmethod
     def _load_benchmark(cls):
@@ -36,7 +42,15 @@ class EvaluationService:
             data = json.load(handle)
         return data["ambiguity"], data["duplicates"]
 
-    def run_evaluation(self) -> Dict[str, Any]:
+    def run_evaluation(self, refresh: bool = False) -> Dict[str, Any]:
+        """Returns benchmark metrics. The services and data are deterministic, so the
+        result is computed once and cached; pass ``refresh=True`` to recompute."""
+        with self._lock:
+            if self._cached is None or refresh:
+                self._cached = self._compute_evaluation()
+            return self._cached
+
+    def _compute_evaluation(self) -> Dict[str, Any]:
         """
         Calculates live accuracy, precision, recall, and F1 metrics
         by evaluating the active services against benchmark sets.
@@ -69,30 +83,32 @@ class EvaluationService:
             y_true_amb, y_pred_amb, average="binary", zero_division=0
         )
 
-        # 3. Duplicate Detection Evaluation (at threshold = 0.80)
+        # 3. Duplicate Detection Evaluation
         y_true_dup = []
         y_pred_dup = []
 
         for text_a, text_b, gold_dup in self.benchmark_duplicates_set:
             emb = self.similarity_service.encode([text_a, text_b])
             sim = float(self.similarity_service.compute_similarity_matrix(emb)[0][1])
-            is_pred_dup = sim >= 0.78
             y_true_dup.append(gold_dup)
-            y_pred_dup.append(is_pred_dup)
+            y_pred_dup.append(sim >= DUPLICATE_THRESHOLD)
+        backend = self.similarity_service.embedding_backend
+        backend_label = (
+            "Sentence-BERT embeddings" if backend == "sentence-transformers"
+            else "calibrated char+word TF-IDF (offline fallback)"
+        )
 
         acc_dup = float(accuracy_score(y_true_dup, y_pred_dup))
         p_dup, r_dup, f1_dup, _ = precision_recall_fscore_support(
             y_true_dup, y_pred_dup, average="binary", zero_division=0
         )
 
-        # 4. Text Generation Metrics (Heuristic lexical overlap / BLEU estimation on standard reformulations)
-        # Evaluates BLEU-1 and ROUGE-L approximation on benchmark rewrites
+        # 4. Text generation quality needs gold reference rewrites, which the
+        # benchmark does not include yet, so no BLEU/ROUGE figures are reported.
         generation_metrics = {
-            "bleu_score": 0.74,
-            "rouge_1": 0.81,
-            "rouge_2": 0.69,
-            "rouge_l": 0.77,
-            "evaluation_method": "Empirical n-gram overlap against IEEE 830 gold references"
+            "status": "not_evaluated",
+            "evaluation_method": "BLEU/ROUGE require gold reference rewrites; add a "
+                                 "'rewrites' list to evaluation_benchmark.json to enable.",
         }
 
         return {
@@ -119,7 +135,8 @@ class EvaluationService:
                 "recall": round(float(r_dup), 3),
                 "f1_score": round(float(f1_dup), 3),
                 "sample_size": len(self.benchmark_duplicates_set),
-                "method": "Cosine Similarity on Sentence Embeddings (Threshold: 0.78)"
+                "method": f"Cosine similarity on {backend_label} (threshold: {DUPLICATE_THRESHOLD})",
+                "embedding_backend": backend
             },
             "text_generation": generation_metrics,
             "dataset_info": {

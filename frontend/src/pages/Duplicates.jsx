@@ -7,18 +7,25 @@ import { useNavigate } from 'react-router-dom';
 
 export default function Duplicates() {
   const { analysis } = useAnalysis();
+  // null threshold = the pairs computed with the analysis' own threshold (no request needed).
+  const [threshold, setThreshold] = useState(null);
   const [duplicates, setDuplicates] = useState(null);
   const [loading, setLoading] = useState(false);
   const navigate = useNavigate();
 
   useEffect(() => {
-    if (!analysis) return;
-    setLoading(true);
-    api.getDuplicates(0.85)
-      .then(setDuplicates)
-      .catch(() => {})
-      .finally(() => setLoading(false));
-  }, [analysis]);
+    if (!analysis || threshold == null) return;
+    let cancelled = false;
+    // Debounce slider drags; the backend re-thresholds a cached similarity matrix.
+    const timer = setTimeout(() => {
+      setLoading(true);
+      api.getDuplicates(threshold)
+        .then(result => { if (!cancelled) setDuplicates(result); })
+        .catch(() => {})
+        .finally(() => { if (!cancelled) setLoading(false); });
+    }, 250);
+    return () => { cancelled = true; clearTimeout(timer); };
+  }, [analysis, threshold]);
 
   if (!analysis) {
     return (
@@ -33,7 +40,7 @@ export default function Duplicates() {
     );
   }
 
-  const pairs = Array.isArray(duplicates) ? duplicates : (analysis?.duplicates || []);
+  const pairs = threshold != null && Array.isArray(duplicates) ? duplicates : (analysis?.duplicates || []);
 
   return (
     <div className="p-6 space-y-6 max-w-5xl">
@@ -41,6 +48,21 @@ export default function Duplicates() {
         title="Duplicate Requirements"
         subtitle="Semantically similar requirements detected via SBERT/TF-IDF cosine similarity"
       />
+
+      <div className="bg-slate-900 border border-slate-800 rounded-xl px-4 py-3 flex items-center gap-4">
+        <label htmlFor="dup-threshold" className="text-sm text-slate-300 whitespace-nowrap">Similarity threshold</label>
+        <input
+          id="dup-threshold"
+          type="range"
+          min={0.5}
+          max={0.99}
+          step={0.01}
+          value={threshold ?? 0.85}
+          onChange={e => setThreshold(parseFloat(e.target.value))}
+          className="flex-1 accent-indigo-500"
+        />
+        <span className="text-xs font-bold text-indigo-400 w-10 text-right">{(threshold ?? 0.85).toFixed(2)}</span>
+      </div>
 
       <div className="grid grid-cols-2 gap-4">
         <StatCard icon={Copy} label="Duplicate Pairs Found" value={pairs.length} color="amber" />

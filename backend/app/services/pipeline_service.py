@@ -33,6 +33,9 @@ class AnalysisPipeline:
         self.ner = NERService()
         self.scorer = QualityScorer()
         self.llm = LLMService()
+        # Similarity matrix of the most recent run, so duplicate thresholds can be
+        # re-applied later without re-encoding the whole document.
+        self.last_similarity: Optional[Dict[str, Any]] = None
 
     def run_pipeline(
         self,
@@ -80,6 +83,32 @@ class AnalysisPipeline:
         # 5. Dynamic Topic Discovery
         topic_info_list = self.topics.discover_topics(raw_requirements, embeddings)
 
+        # Batched stages: spaCy parses all requirements in one pipe, LLM calls run concurrently.
+        entities_per_req = self.ner.extract_entities_batch(req_texts)
+        enhanced_per_req = self.llm.enhance_requirements(req_texts)
+
+        # Highest similarity to any *other* requirement, vectorised.
+        if n > 1:
+            off_diagonal = sim_matrix.copy()
+            np.fill_diagonal(off_diagonal, -np.inf)
+            max_sims = off_diagonal.max(axis=1)
+        else:
+            max_sims = np.zeros(n)
+
+        # Index conflicts by requirement once instead of scanning the full list per requirement.
+        conflicts_by_req: Dict[str, List[Dict[str, Any]]] = {}
+        for c in conflict_list:
+            for own, other in (("req_a", "req_b"), ("req_b", "req_a")):
+                conflicts_by_req.setdefault(c[f"{own}_id"], []).append({
+                    "target_id": c[f"{other}_id"],
+                    "target_text": c[f"{other}_text"],
+                    "conflict_type": c["conflict_type"],
+                    "explanation": c["explanation"],
+                    "attribute": c.get("attribute"),
+                    "value_a": c.get("value_a"),
+                    "value_b": c.get("value_b"),
+                })
+
         # 6. Detailed Per-Requirement Processing
         analyzed_requirements = []
 
@@ -115,11 +144,8 @@ class AnalysisPipeline:
             )
 
             # NER Entity Extraction
-            entities = self.ner.extract_entities(text)
-
-            # Max similarity with any other requirement
-            other_sims = [sim_matrix[idx][j] for j in range(n) if j != idx]
-            max_sim = max(other_sims) if other_sims else 0.0
+            entities = entities_per_req[idx]
+            max_sim = float(max_sims[idx])
 
             has_dup = req_id in dup_ids
             has_conf = req_id in conflict_ids
@@ -146,31 +172,10 @@ class AnalysisPipeline:
                 duplicate_threshold=similarity_threshold,
             )
             
-            conflict_refs = []
-            for c in conflict_list:
-                if c["req_a_id"] == req_id:
-                    conflict_refs.append({
-                        "target_id": c["req_b_id"],
-                        "target_text": c["req_b_text"],
-                        "conflict_type": c["conflict_type"],
-                        "explanation": c["explanation"],
-                        "attribute": c.get("attribute"),
-                        "value_a": c.get("value_a"),
-                        "value_b": c.get("value_b"),
-                    })
-                elif c["req_b_id"] == req_id:
-                    conflict_refs.append({
-                        "target_id": c["req_a_id"],
-                        "target_text": c["req_a_text"],
-                        "conflict_type": c["conflict_type"],
-                        "explanation": c["explanation"],
-                        "attribute": c.get("attribute"),
-                        "value_a": c.get("value_a"),
-                        "value_b": c.get("value_b"),
-                    })
+            conflict_refs = conflicts_by_req.get(req_id, [])
 
             # LLM / Deterministic Generation (Rewriting, User Story, Acceptance Criteria)
-            enhanced = self.llm.enhance_requirement(text)
+            enhanced = enhanced_per_req[idx]
 
             analyzed_requirements.append({
                 "id": req_id,
@@ -211,6 +216,11 @@ class AnalysisPipeline:
             self.similarity.embedding_backend,
         )
 
+        self.last_similarity = {
+            "ids": [r["id"] for r in raw_requirements],
+            "matrix": sim_matrix,
+        }
+
         return {
             "document_name": document_name,
             "document_text": raw_text,
@@ -245,7 +255,6 @@ class AnalysisPipeline:
             "Moderate (60-74)": sum(1 for r in requirements if 60 <= r["quality_score"] < 75),
             "Needs Improvement (<60)": sum(1 for r in requirements if r["quality_score"] < 60)
         }
-        assert sum(q_dist.values()) == total
 
         # Smell distribution
         smell_dist: Dict[str, int] = {}

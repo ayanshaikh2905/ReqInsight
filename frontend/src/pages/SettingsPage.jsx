@@ -8,7 +8,7 @@ const FIELD_CONFIG = {
   llm_provider: { label: 'Artifact Provider', type: 'text', placeholder: 'fallback, openai, ollama…' },
   use_local_fallback: { label: 'Use Local Fallback for Artifacts', type: 'toggle' },
   llm_model: { label: 'LLM Model Name', type: 'text', placeholder: 'e.g. gpt-4o-mini' },
-  llm_api_key: { label: 'LLM API Key (stored in session only)', type: 'password', placeholder: 'API key' },
+  llm_api_key: { label: 'LLM API Key (kept server-side, never shown)', type: 'password', placeholder: 'API key' },
 };
 
 export default function SettingsPage() {
@@ -111,7 +111,11 @@ export default function SettingsPage() {
                   <input
                     id={`setting-${key}`}
                     type={cfg.type}
-                    placeholder={cfg.placeholder}
+                    placeholder={
+                      key === 'llm_api_key' && settings.llm_api_key_set
+                        ? '•••••••• saved (leave blank to keep)'
+                        : cfg.placeholder
+                    }
                     value={settings[key] || ''}
                     onChange={e => update(key, e.target.value)}
                     className="w-56 rounded-lg bg-slate-800 border border-slate-700 text-slate-200 text-sm px-3 py-1.5 focus:outline-none focus:border-indigo-600 placeholder:text-slate-600"

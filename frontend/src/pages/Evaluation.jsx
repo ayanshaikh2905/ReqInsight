@@ -83,6 +83,43 @@ export default function Evaluation() {
             </ResponsiveContainer>
           </div>
 
+          <div className="bg-slate-900 border border-slate-800 rounded-xl p-4 overflow-x-auto">
+            <h3 className="text-sm font-semibold text-slate-300 mb-3">All Benchmarks</h3>
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="text-xs text-slate-500 text-left">
+                  <th className="py-1.5 pr-3">Task</th>
+                  <th className="py-1.5 px-2 text-right">Accuracy</th>
+                  <th className="py-1.5 px-2 text-right">Precision</th>
+                  <th className="py-1.5 px-2 text-right">Recall</th>
+                  <th className="py-1.5 px-2 text-right">F1</th>
+                  <th className="py-1.5 pl-2 text-right">n</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-800">
+                {[
+                  ['Functional / Non-functional', metrics.classification, metrics.classification?.model_description],
+                  ['Ambiguity detection', metrics.ambiguity, metrics.ambiguity?.method],
+                  ['Duplicate detection', metrics.duplicates, metrics.duplicates?.method],
+                ].filter(([, m]) => m).map(([name, m, method]) => (
+                  <tr key={name}>
+                    <td className="py-2 pr-3">
+                      <div className="text-slate-200">{name}</div>
+                      {method && <div className="text-xs text-slate-500">{method}</div>}
+                    </td>
+                    {['accuracy', 'precision', 'recall', 'f1_score'].map(k => (
+                      <td key={k} className="py-2 px-2 text-right text-slate-300 font-mono">{(m[k] * 100).toFixed(1)}%</td>
+                    ))}
+                    <td className="py-2 pl-2 text-right text-slate-500">{m.sample_size}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+            <p className="text-xs text-slate-500 mt-3">
+              Small benchmark sets: treat these as sanity checks, not production accuracy figures.
+            </p>
+          </div>
+
           {metrics.dataset_info && (
             <div className="bg-slate-900 border border-slate-800 rounded-xl p-4">
               <h3 className="text-sm font-semibold text-slate-300 mb-3">Dataset Information</h3>

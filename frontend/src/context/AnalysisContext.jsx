@@ -1,4 +1,4 @@
-import { createContext, useContext, useState, useCallback, useRef } from 'react';
+import { createContext, useContext, useState, useCallback, useRef, useEffect } from 'react';
 import { api } from '../api/client';
 
 const AnalysisContext = createContext(null);
@@ -61,6 +61,30 @@ export function AnalysisProvider({ children }) {
     [runAnalysis]
   );
 
+  // Re-open a stored run (History page) and make it the active analysis.
+  const loadRun = useCallback(
+    (runId, docLabel) => runAnalysis(() => api.activateRun(runId), docLabel || 'Saved analysis'),
+    [runAnalysis]
+  );
+
+  // Restore the most recent run after a page refresh instead of starting empty.
+  const restored = useRef(false);
+  useEffect(() => {
+    if (restored.current) return;
+    restored.current = true;
+    let cancelled = false;
+    api.listHistory(1)
+      .then(runs => (runs.length ? api.activateRun(runs[0].run_id) : null))
+      .then(result => {
+        if (!cancelled && result) {
+          setAnalysis(prev => prev ?? result);
+          setCurrentDoc(prev => prev ?? result.document_name);
+        }
+      })
+      .catch(() => {});
+    return () => { cancelled = true; };
+  }, []);
+
   const clearAnalysis = useCallback(() => {
     setAnalysis(null);
     setCurrentDoc(null);
@@ -69,7 +93,7 @@ export function AnalysisProvider({ children }) {
 
   return (
     <AnalysisContext.Provider
-      value={{ analysis, loading, error, progress, currentDoc, loadDemo, uploadFile, analyzeText, clearAnalysis }}
+      value={{ analysis, loading, error, progress, currentDoc, loadDemo, uploadFile, analyzeText, loadRun, clearAnalysis }}
     >
       {children}
     </AnalysisContext.Provider>
