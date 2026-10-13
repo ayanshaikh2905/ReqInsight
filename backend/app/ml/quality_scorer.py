@@ -1,4 +1,5 @@
 from typing import Dict, Any, List
+import re
 
 
 class QualityScorer:
@@ -38,9 +39,9 @@ class QualityScorer:
             clarity -= min(55, len(ambiguous_terms) * 25)
         # Check weak modals
         lower = text.lower()
-        if any(w in lower for w in ["can", "may", "could", "might"]):
+        if any(re.search(r"\b" + word + r"\b", lower) for word in ["can", "may", "could", "might"]):
             clarity -= 15
-        if "and/or" in lower or "/" in lower:
+        if re.search(r"\band/or\b|\b\w+\s+/\s+\w+\b", lower):
             clarity -= 10
         clarity = max(10, min(100, clarity))
 
@@ -58,7 +59,7 @@ class QualityScorer:
         has_numbers = any(char.isdigit() for char in text)
         if req_type == "Non-Functional" and not has_numbers:
             specificity -= 45  # Non-functional without numbers is heavily penalized
-        if any(v in lower for v in ["fast", "quick", "easy", "large number", "several", "user-friendly"]):
+        if any(re.search(r"\b" + re.escape(v) + r"\b", lower) for v in ["fast", "quick", "easy", "large number", "several", "user-friendly"]):
             specificity -= 30
         if has_numbers:
             specificity = min(100, specificity + 15)
@@ -83,7 +84,8 @@ class QualityScorer:
         # 6. Uniqueness (Baseline: 95)
         uniqueness = 95
         if has_duplicate or similarity_max >= 0.85:
-            uniqueness -= min(65, int((similarity_max - 0.70) * 150))
+            penalty = max(20, int(max(0.0, similarity_max - 0.70) * 150))
+            uniqueness -= min(65, penalty)
         elif similarity_max >= 0.75:
             uniqueness -= 20
         uniqueness = max(15, min(100, uniqueness))

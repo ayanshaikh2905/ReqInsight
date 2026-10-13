@@ -68,4 +68,6 @@ export const api = {
       body: JSON.stringify({ text }),
     }).then(r => r.json()),
   exportReport: (format) => request(`/export/${format}`),
+  getCorrectedSRS: () => request('/corrected-srs').then(r => r.json()),
+  exportCorrectedSRS: (format) => request(`/export/corrected/${format}`).then(r => r.blob()),
 };

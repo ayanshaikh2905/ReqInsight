@@ -80,13 +80,16 @@ export default function Dashboard() {
         title="Dashboard"
         subtitle={`Analysis of: ${analysis.document_name}`}
         actions={
-          <button
-            id="btn-demo-reload"
-            onClick={loadDemo}
-            className="flex items-center gap-2 px-4 py-2 rounded-lg bg-indigo-600/20 text-indigo-400 text-xs font-medium hover:bg-indigo-600/30 border border-indigo-800/50 transition-colors"
-          >
-            <FlaskConical className="w-3.5 h-3.5" /> Reload Demo
-          </button>
+          <div className="flex items-center gap-2">
+            <Badge variant="info">Embedding: {s.embedding_backend || 'unknown'}</Badge>
+            <button
+              id="btn-demo-reload"
+              onClick={loadDemo}
+              className="flex items-center gap-2 px-4 py-2 rounded-lg bg-indigo-600/20 text-indigo-400 text-xs font-medium hover:bg-indigo-600/30 border border-indigo-800/50 transition-colors"
+            >
+              <FlaskConical className="w-3.5 h-3.5" /> Reload Demo
+            </button>
+          </div>
         }
       />
 

@@ -1,3 +1,5 @@
+import json
+from pathlib import Path
 from typing import Dict, Any, List
 import numpy as np
 from sklearn.metrics import accuracy_score, precision_recall_fscore_support
@@ -19,57 +21,20 @@ class EvaluationService:
     No hardcoded fake scores are fabricated.
     """
 
-    BENCHMARK_CLASSIFICATION_SET = [
-        ("The system shall allow users to reset their password using an email verification token.", "Functional"),
-        ("The cashier shall be able to look up item prices using the barcode scanner.", "Functional"),
-        ("The software shall generate monthly sales reports in PDF and Excel formats.", "Functional"),
-        ("The system shall send an SMS notification when the package is delivered.", "Functional"),
-        ("The user shall be able to filter search results by date, author, and category.", "Functional"),
-        ("The application shall support user profile editing and avatar uploads.", "Functional"),
-        ("The system shall calculate shipping costs based on total weight and destination.", "Functional"),
-        ("The customer shall be able to save items to their wishlist for later review.", "Functional"),
-        ("The system shall allow administrators to assign roles and manage permissions.", "Functional"),
-        ("The platform shall provide an API endpoint for third-party invoice synchronization.", "Functional"),
-        
-        ("The system shall respond to user queries within 1.5 seconds under standard load.", "Non-Functional"),
-        ("The application must achieve 99.95% availability during normal business hours.", "Non-Functional"),
-        ("All stored personal data must be encrypted at rest using AES-256.", "Non-Functional"),
-        ("The user interface must comply with WCAG 2.1 AA accessibility guidelines.", "Non-Functional"),
-        ("The system shall support up to 5,000 concurrent active users without degradation.", "Non-Functional"),
-        ("The mean time to recovery (MTTR) following a server failure shall not exceed 10 minutes.", "Non-Functional"),
-        ("Network data transmissions must be encrypted using TLS 1.3.", "Non-Functional"),
-        ("The application must consume less than 1.5 GB of RAM under peak traffic.", "Non-Functional"),
-        ("The system should be fast and responsive at all times.", "Non-Functional"),
-        ("The platform should be easy to use for first-time visitors.", "Non-Functional")
-    ]
-
-    BENCHMARK_AMBIGUITY_SET = [
-        # (text, is_ambiguous_gold)
-        ("The system should be very fast.", True),
-        ("The user interface should be easy and user-friendly.", True),
-        ("The system shall respond within 2 seconds.", False),
-        ("The software should support a large number of users.", True),
-        ("The system shall support at least 10,000 concurrent users.", False),
-        ("Reports should be generated soon after request.", True),
-        ("Passwords must contain at least 8 characters.", False),
-        ("The system shall use appropriate security measures.", True),
-        ("The application shall encrypt all passwords using bcrypt with 12 salt rounds.", False),
-        ("The system should have optimal throughput.", True)
-    ]
-
-    BENCHMARK_DUPLICATES_SET = [
-        # (text_a, text_b, is_duplicate_gold)
-        ("Users can reset their password.", "Users can change their forgotten password.", True),
-        ("The system shall allow users to log in.", "The system shall authenticate registered users.", True),
-        ("The system shall generate PDF reports.", "The system shall export sales records in PDF.", True),
-        ("The system should be very fast.", "The system shall encrypt user passwords.", False),
-        ("The system shall support 10,000 users.", "Users can reset their password.", False)
-    ]
+    BENCHMARK_PATH = Path(__file__).resolve().parents[3] / "data" / "sample" / "evaluation_benchmark.json"
 
     def __init__(self):
-        self.classifier = ClassificationService()
+        train_data, self.classification_evaluation_data = ClassificationService.split_dataset()
+        self.classifier = ClassificationService(train_data)
         self.ambiguity_service = AmbiguityService()
         self.similarity_service = SimilarityService()
+        self.benchmark_ambiguity_set, self.benchmark_duplicates_set = self._load_benchmark()
+
+    @classmethod
+    def _load_benchmark(cls):
+        with cls.BENCHMARK_PATH.open("r", encoding="utf-8") as handle:
+            data = json.load(handle)
+        return data["ambiguity"], data["duplicates"]
 
     def run_evaluation(self) -> Dict[str, Any]:
         """
@@ -80,7 +45,7 @@ class EvaluationService:
         y_true_cls = []
         y_pred_cls = []
 
-        for text, gold_label in self.BENCHMARK_CLASSIFICATION_SET:
+        for text, gold_label in self.classification_evaluation_data:
             pred = self.classifier.classify(text)
             y_true_cls.append(gold_label)
             y_pred_cls.append(pred["type"])
@@ -94,7 +59,7 @@ class EvaluationService:
         y_true_amb = []
         y_pred_amb = []
 
-        for text, gold_amb in self.BENCHMARK_AMBIGUITY_SET:
+        for text, gold_amb in self.benchmark_ambiguity_set:
             pred_amb = self.ambiguity_service.detect_ambiguity(text)
             y_true_amb.append(gold_amb)
             y_pred_amb.append(pred_amb["is_ambiguous"])
@@ -108,7 +73,7 @@ class EvaluationService:
         y_true_dup = []
         y_pred_dup = []
 
-        for text_a, text_b, gold_dup in self.BENCHMARK_DUPLICATES_SET:
+        for text_a, text_b, gold_dup in self.benchmark_duplicates_set:
             emb = self.similarity_service.encode([text_a, text_b])
             sim = float(self.similarity_service.compute_similarity_matrix(emb)[0][1])
             is_pred_dup = sim >= 0.78
@@ -136,15 +101,16 @@ class EvaluationService:
                 "precision": round(float(p_cls), 3),
                 "recall": round(float(r_cls), 3),
                 "f1_score": round(float(f1_cls), 3),
-                "sample_size": len(self.BENCHMARK_CLASSIFICATION_SET),
-                "model_description": "TF-IDF + Calibrated Linear Classifier on PROMISE NFR Subset"
+                "sample_size": len(self.classification_evaluation_data),
+                "training_size": len(self.classifier.training_data),
+                "model_description": "TF-IDF + Logistic Classifier trained on PROMISE NFR training split"
             },
             "ambiguity": {
                 "accuracy": round(acc_amb, 3),
                 "precision": round(float(p_amb), 3),
                 "recall": round(float(r_amb), 3),
                 "f1_score": round(float(f1_amb), 3),
-                "sample_size": len(self.BENCHMARK_AMBIGUITY_SET),
+                "sample_size": len(self.benchmark_ambiguity_set),
                 "method": "Hybrid Lexical + Syntactic Constraint Rule Engine"
             },
             "duplicates": {
@@ -152,12 +118,12 @@ class EvaluationService:
                 "precision": round(float(p_dup), 3),
                 "recall": round(float(r_dup), 3),
                 "f1_score": round(float(f1_dup), 3),
-                "sample_size": len(self.BENCHMARK_DUPLICATES_SET),
+                "sample_size": len(self.benchmark_duplicates_set),
                 "method": "Cosine Similarity on Sentence Embeddings (Threshold: 0.78)"
             },
             "text_generation": generation_metrics,
             "dataset_info": {
-                "primary_datasets": ["PROMISE NFR (Menzies et al.)", "PURE Dataset", "Requirements Smells Benchmark"],
-                "note": "Metrics are dynamically re-calculated against verified benchmark samples to guarantee academic integrity."
+                "primary_datasets": ["PROMISE NFR CSV"],
+                "note": "Classification metrics use a deterministic held-out split and never evaluate training rows."
             }
         }

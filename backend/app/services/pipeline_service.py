@@ -56,15 +56,22 @@ class AnalysisPipeline:
         sim_matrix = self.similarity.compute_similarity_matrix(embeddings)
 
         # 3. Duplicate Detection
-        duplicates = self.similarity.find_duplicates(raw_requirements, threshold=similarity_threshold)
-        dup_ids = set()
-        for d in duplicates:
-            if d["similarity"] >= 0.88:
-                dup_ids.add(d["req_a_id"])
-                dup_ids.add(d["req_b_id"])
+        duplicates = self.similarity.find_duplicates(
+            raw_requirements,
+            threshold=similarity_threshold,
+            sim_matrix=sim_matrix,
+        )
 
         # 4. Conflict Detection
         conflict_list = self.conflicts.find_conflicts(raw_requirements, sim_matrix)
+        conflict_pairs = {
+            frozenset((c["req_a_id"], c["req_b_id"])) for c in conflict_list
+        }
+        duplicates = [
+            d for d in duplicates
+            if frozenset((d["req_a_id"], d["req_b_id"])) not in conflict_pairs
+        ]
+        dup_ids = {req_id for d in duplicates for req_id in (d["req_a_id"], d["req_b_id"])}
         conflict_ids = set()
         for c in conflict_list:
             conflict_ids.add(c["req_a_id"])
@@ -131,7 +138,13 @@ class AnalysisPipeline:
             )
 
             # Related Requirements & Conflict References
-            similar_refs = self.similarity.get_related_requirements(idx, raw_requirements, sim_matrix, threshold=0.60)
+            similar_refs = self.similarity.get_related_requirements(
+                idx,
+                raw_requirements,
+                sim_matrix,
+                threshold=0.60,
+                duplicate_threshold=similarity_threshold,
+            )
             
             conflict_refs = []
             for c in conflict_list:
@@ -140,14 +153,20 @@ class AnalysisPipeline:
                         "target_id": c["req_b_id"],
                         "target_text": c["req_b_text"],
                         "conflict_type": c["conflict_type"],
-                        "explanation": c["explanation"]
+                        "explanation": c["explanation"],
+                        "attribute": c.get("attribute"),
+                        "value_a": c.get("value_a"),
+                        "value_b": c.get("value_b"),
                     })
                 elif c["req_b_id"] == req_id:
                     conflict_refs.append({
                         "target_id": c["req_a_id"],
                         "target_text": c["req_a_text"],
                         "conflict_type": c["conflict_type"],
-                        "explanation": c["explanation"]
+                        "explanation": c["explanation"],
+                        "attribute": c.get("attribute"),
+                        "value_a": c.get("value_a"),
+                        "value_b": c.get("value_b"),
                     })
 
             # LLM / Deterministic Generation (Rewriting, User Story, Acceptance Criteria)
@@ -184,7 +203,13 @@ class AnalysisPipeline:
             })
 
         # 7. Summary Metrics
-        summary = self._compute_summary(analyzed_requirements, duplicates, conflict_list, topic_info_list)
+        summary = self._compute_summary(
+            analyzed_requirements,
+            duplicates,
+            conflict_list,
+            topic_info_list,
+            self.similarity.embedding_backend,
+        )
 
         return {
             "document_name": document_name,
@@ -201,7 +226,8 @@ class AnalysisPipeline:
         requirements: List[Dict[str, Any]],
         duplicates: List[Dict[str, Any]],
         conflicts: List[Dict[str, Any]],
-        topics: List[Dict[str, Any]]
+        topics: List[Dict[str, Any]],
+        embedding_backend: str = "tfidf-fallback",
     ) -> Dict[str, Any]:
         """Calculates aggregate statistics for the SRS dashboard."""
         total = len(requirements)
@@ -216,9 +242,10 @@ class AnalysisPipeline:
         q_dist = {
             "Excellent (90-100)": sum(1 for r in requirements if r["quality_score"] >= 90),
             "Good (75-89)": sum(1 for r in requirements if 75 <= r["quality_score"] < 90),
-            "Moderate (60-74)": sum(1 for r in requirements if 60 <= r["quality_score"] < 74),
+            "Moderate (60-74)": sum(1 for r in requirements if 60 <= r["quality_score"] < 75),
             "Needs Improvement (<60)": sum(1 for r in requirements if r["quality_score"] < 60)
         }
+        assert sum(q_dist.values()) == total
 
         # Smell distribution
         smell_dist: Dict[str, int] = {}
@@ -243,5 +270,6 @@ class AnalysisPipeline:
             "average_quality_score": avg_score,
             "quality_distribution": q_dist,
             "smell_distribution": smell_dist,
-            "topic_distribution": topic_dist
+            "topic_distribution": topic_dist,
+            "embedding_backend": embedding_backend,
         }

@@ -17,6 +17,7 @@ class SimilarityService:
         self._sbert_model = None
         self._sbert_attempted = False
         self._tfidf_fallback = None
+        self.embedding_backend = "tfidf-fallback"
 
     def _get_sbert(self):
         """Loads cached SentenceTransformer with fallback."""
@@ -42,6 +43,7 @@ class SimilarityService:
         if model is not None:
             try:
                 embeddings = model.encode(texts, convert_to_numpy=True, normalize_embeddings=True)
+                self.embedding_backend = "sentence-transformers"
                 return embeddings
             except Exception as e:
                 print(f"[SimilarityService] SBERT encode failed: {e}. Falling back to subword TF-IDF.")
@@ -54,12 +56,14 @@ class SimilarityService:
             sublinear_tf=True,
             strip_accents="unicode"
         )
-        sparse = vectorizer.fit_transform(texts)
+        try:
+            sparse = vectorizer.fit_transform(texts)
+        except ValueError:
+            return np.zeros((len(texts), 1), dtype=float)
             
         dense = sparse.toarray()
         norms = np.linalg.norm(dense, axis=1, keepdims=True)
         norms[norms == 0] = 1.0
-        return dense / norms
         return dense / norms
 
     def compute_similarity_matrix(self, embeddings: np.ndarray) -> np.ndarray:
@@ -71,7 +75,8 @@ class SimilarityService:
     def find_duplicates(
         self,
         requirements: List[Dict[str, Any]],
-        threshold: float = 0.85
+        threshold: float = 0.85,
+        sim_matrix: Optional[np.ndarray] = None,
     ) -> List[Dict[str, Any]]:
         """
         Identifies potential duplicate or highly similar requirements
@@ -80,9 +85,10 @@ class SimilarityService:
         if len(requirements) < 2:
             return []
 
-        texts = [req["text"] for req in requirements]
-        embeddings = self.encode(texts)
-        sim_matrix = self.compute_similarity_matrix(embeddings)
+        if sim_matrix is None:
+            texts = [req["text"] for req in requirements]
+            embeddings = self.encode(texts)
+            sim_matrix = self.compute_similarity_matrix(embeddings)
 
         duplicates = []
         n = len(requirements)
@@ -109,7 +115,8 @@ class SimilarityService:
         target_idx: int,
         requirements: List[Dict[str, Any]],
         sim_matrix: np.ndarray,
-        threshold: float = 0.60
+        threshold: float = 0.60,
+        duplicate_threshold: float = 0.85,
     ) -> List[Dict[str, Any]]:
         """Finds all requirements related to a given requirement."""
         related = []
@@ -123,7 +130,7 @@ class SimilarityService:
                     "target_id": requirements[j]["id"],
                     "target_text": requirements[j]["text"],
                     "similarity": round(score, 3),
-                    "is_duplicate": bool(score >= 0.85)
+                    "is_duplicate": bool(score >= duplicate_threshold)
                 })
         related.sort(key=lambda x: x["similarity"], reverse=True)
         return related

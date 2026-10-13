@@ -23,7 +23,22 @@ class TopicService:
         "User Management": ["account", "profile", "register", "signup", "user", "deactivate", "avatar", "bio"],
         "Payment & Billing": ["payment", "invoice", "credit", "card", "checkout", "billing", "tax", "transaction", "currency"],
         "Notifications & Alerts": ["notification", "email", "sms", "alert", "push", "message", "notify"],
-        "Data & Integration": ["database", "backup", "api", "rest", "sync", "storage", "import", "endpoint"]
+        "Data & Integration": ["database", "backup", "api", "rest", "sync", "storage", "import", "endpoint"],
+        "Text Processing": ["tokenize", "normalize", "stem", "lemmatize", "stop word"],
+        "Model & Accuracy": ["model", "accuracy", "precision", "recall", "f1", "classifier"],
+        "Input & Output Formats": ["json", "xml", "csv", "yaml", "input format", "output format"],
+        "Data Privacy & Retention": ["privacy", "retain", "retention", "delete", "personal data", "anonymize"],
+    }
+
+    STRONG_DOMAIN_TERMS = {
+        "oauth", "jwt", "mfa", "gdpr", "hipaa", "aes", "json", "xml", "tokenize",
+        "lemmatize", "precision", "recall", "retention",
+    }
+    GENERIC_TERMS = {
+        "achieve", "return", "support", "only", "minimum", "maximum", "run", "shall",
+        "must", "should", "will", "system", "user", "users", "role", "second",
+        "the", "and", "for", "with", "that", "this", "from", "are", "can", "allow",
+        "able", "all", "each", "any", "when", "into", "their", "requirement",
     }
 
     def discover_topics(
@@ -105,12 +120,7 @@ class TopicService:
         """Extracts top TF-IDF keywords for a cluster of requirements."""
         joined = " ".join(texts)
         words = re.findall(r"\b[a-zA-Z]{3,15}\b", joined.lower())
-        stopwords = {
-            "the", "shall", "must", "should", "will", "system", "user", "users",
-            "and", "for", "with", "that", "this", "from", "are", "can", "allow",
-            "able", "all", "each", "any", "when", "into", "their"
-        }
-        filtered = [w for w in words if w not in stopwords]
+        filtered = [w for w in words if w not in self.GENERIC_TERMS]
         if not filtered:
             return ["general"]
 
@@ -126,22 +136,26 @@ class TopicService:
         """Assigns an intuitive, descriptive title to the topic cluster."""
         combined_text = " ".join(texts).lower()
 
-        # Check domain alignment
-        best_domain = None
-        max_overlap = 0
-
+        # A term match is token-boundary aware, so "token" cannot match "tokenization".
+        domain_scores = {}
         for domain, domain_terms in self.KNOWN_DOMAINS.items():
-            overlap = sum(1 for term in domain_terms if term in combined_text or term in keywords)
-            if overlap > max_overlap:
-                max_overlap = overlap
-                best_domain = domain
+            matched_terms = {
+                term for term in domain_terms
+                if re.search(r"(?<!\w)" + re.escape(term) + r"(?!\w)", combined_text)
+            }
+            domain_scores[domain] = matched_terms
 
-        if max_overlap >= 1 and best_domain:
-            return best_domain
+        max_score = max((len(terms) for terms in domain_scores.values()), default=0)
+        best_domains = [domain for domain, terms in domain_scores.items() if len(terms) == max_score]
+        if len(best_domains) == 1:
+            best_domain = best_domains[0]
+            matched_terms = domain_scores[best_domain]
+            if len(matched_terms) >= 2 or matched_terms & self.STRONG_DOMAIN_TERMS:
+                return best_domain
 
         # Otherwise synthesize from top keywords
         if keywords:
             cap_keywords = [kw.capitalize() for kw in keywords[:2]]
-            return " & ".join(cap_keywords) + " Management"
+            return " & ".join(cap_keywords)
 
         return "General System Feature"

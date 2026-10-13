@@ -4,9 +4,10 @@ import { Search, Filter, ChevronDown, ChevronUp, Sparkles, BookOpen, Check } fro
 import { useAnalysis } from '../context/AnalysisContext';
 import { PageHeader, EmptyState, Spinner } from '../components/Card';
 import { Badge, TypeBadge, ScoreBadge } from '../components/Badge';
+import { api } from '../api/client';
 import { Upload } from 'lucide-react';
 
-function RequirementRow({ req }) {
+function RequirementRow({ req, hasDuplicate }) {
   const [expanded, setExpanded] = useState(false);
   const [artifact, setArtifact] = useState(null);
   const [artifactError, setArtifactError] = useState(null);
@@ -43,6 +44,8 @@ function RequirementRow({ req }) {
         <div className="flex items-center gap-2 flex-shrink-0">
           {req.is_ambiguous && <Badge variant="warning">Ambiguous</Badge>}
           {req.is_incomplete && <Badge variant="danger">Incomplete</Badge>}
+          {req.potential_conflicts?.length > 0 && <Badge variant="danger">Conflict</Badge>}
+          {hasDuplicate && <Badge variant="warning">Duplicate</Badge>}
           <ScoreBadge score={req.quality_score} />
           {expanded ? <ChevronUp className="w-4 h-4 text-slate-500" /> : <ChevronDown className="w-4 h-4 text-slate-500" />}
         </div>
@@ -215,6 +218,9 @@ export default function Requirements() {
     if (search && !r.text.toLowerCase().includes(search.toLowerCase()) && !r.id.toLowerCase().includes(search.toLowerCase())) return false;
     return true;
   });
+  const duplicateIds = new Set(
+    (analysis.duplicates || []).flatMap(pair => [pair.req_a_id, pair.req_b_id])
+  );
 
   return (
     <div className="p-6 space-y-4 max-w-6xl">
@@ -264,7 +270,7 @@ export default function Requirements() {
 
       {/* List */}
       <div className="space-y-2">
-        {reqs.map(req => <RequirementRow key={req.id} req={req} />)}
+        {reqs.map(req => <RequirementRow key={req.id} req={req} hasDuplicate={duplicateIds.has(req.id)} />)}
         {reqs.length === 0 && (
           <div className="text-center py-16 text-slate-500">No requirements match your filters.</div>
         )}

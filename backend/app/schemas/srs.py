@@ -26,6 +26,9 @@ class ConflictRef(BaseModel):
     target_text: str
     conflict_type: str
     explanation: str
+    attribute: Optional[str] = None
+    value_a: Optional[str] = None
+    value_b: Optional[str] = None
 
 
 class RequirementItem(BaseModel):
@@ -82,6 +85,9 @@ class ConflictPair(BaseModel):
     conflict_type: str
     explanation: str
     confidence: float = 0.88
+    attribute: Optional[str] = None
+    value_a: Optional[str] = None
+    value_b: Optional[str] = None
 
 
 class TopicInfo(BaseModel):
@@ -104,6 +110,7 @@ class AnalysisSummary(BaseModel):
     quality_distribution: Dict[str, int] = Field(default_factory=dict)
     smell_distribution: Dict[str, int] = Field(default_factory=dict)
     topic_distribution: List[Dict[str, Any]] = Field(default_factory=list)
+    embedding_backend: str = "tfidf-fallback"
 
 
 class AnalysisResponse(BaseModel):
@@ -114,6 +121,68 @@ class AnalysisResponse(BaseModel):
     duplicates: List[DuplicatePair] = Field(default_factory=list)
     conflicts: List[ConflictPair] = Field(default_factory=list)
     topics: List[TopicInfo] = Field(default_factory=list)
+
+
+class CorrectedRequirement(BaseModel):
+    id: str
+    original_text: str
+    corrected_text: str
+    status: str
+    notes: str
+
+
+class CorrectedSection(BaseModel):
+    title: str
+    requirements: List[CorrectedRequirement] = Field(default_factory=list)
+
+
+class CorrectedDecision(BaseModel):
+    req_a_id: str
+    req_a_text: str
+    req_b_id: str
+    req_b_text: str
+    conflict_type: str
+    explanation: str
+
+
+class MergedDuplicate(BaseModel):
+    kept_id: str
+    removed_id: str
+    similarity: float
+    kept_text: str
+    removed_text: str
+
+
+class CorrectedOpenItem(BaseModel):
+    req_id: str
+    placeholder: str
+
+
+class CorrectedChange(BaseModel):
+    req_id: str
+    change_type: str
+    before: str
+    after: str
+    reason: str
+
+
+class CorrectedSummary(BaseModel):
+    total: int = 0
+    unchanged: int = 0
+    reworded: int = 0
+    merged: int = 0
+    needs_decision: int = 0
+    open_items: int = 0
+
+
+class CorrectedSRSResponse(BaseModel):
+    document_name: str
+    sections: List[CorrectedSection] = Field(default_factory=list)
+    needs_decision: List[CorrectedDecision] = Field(default_factory=list)
+    merged_duplicates: List[MergedDuplicate] = Field(default_factory=list)
+    open_items: List[CorrectedOpenItem] = Field(default_factory=list)
+    changelog: List[CorrectedChange] = Field(default_factory=list)
+    summary: CorrectedSummary
 
 
 class EvaluationMetrics(BaseModel):

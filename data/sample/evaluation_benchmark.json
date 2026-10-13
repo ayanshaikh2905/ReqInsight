@@ -1,0 +1,21 @@
+{
+  "ambiguity": [
+    ["The system should be very fast.", true],
+    ["The user interface should be easy and user-friendly.", true],
+    ["The system shall respond within 2 seconds.", false],
+    ["The software should support a large number of users.", true],
+    ["The system shall support at least 10,000 concurrent users.", false],
+    ["Reports should be generated soon after request.", true],
+    ["Passwords must contain at least 8 characters.", false],
+    ["The system shall use appropriate security measures.", true],
+    ["The application shall encrypt all passwords using bcrypt with 12 salt rounds.", false],
+    ["The system should have optimal throughput.", true]
+  ],
+  "duplicates": [
+    ["Users can reset their password.", "Users can change their forgotten password.", true],
+    ["The system shall allow users to log in.", "The system shall authenticate registered users.", true],
+    ["The system shall generate PDF reports.", "The system shall export sales records in PDF.", true],
+    ["The system should be very fast.", "The system shall encrypt user passwords.", false],
+    ["The system shall support 10,000 users.", "Users can reset their password.", false]
+  ]
+}

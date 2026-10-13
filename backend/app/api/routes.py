@@ -19,12 +19,14 @@ from backend.app.schemas.srs import (
     UserStoryResponse,
     AcceptanceCriteriaRequest,
     AcceptanceCriteriaResponse,
-    AnalyzeTextRequest
+    AnalyzeTextRequest,
+    CorrectedSRSResponse
 )
 from backend.app.utils.document_parser import DocumentParser
 from backend.app.services.pipeline_service import AnalysisPipeline
 from backend.app.services.evaluation_service import EvaluationService
 from backend.app.reports.report_generator import ReportGenerator
+from backend.app.reports.corrected_srs_builder import CorrectedSRSBuilder
 from backend.app.models.database import DatabaseManager
 
 router = APIRouter()
@@ -33,6 +35,7 @@ router = APIRouter()
 pipeline = AnalysisPipeline()
 db = DatabaseManager()
 evaluator = EvaluationService()
+corrected_srs_builder = CorrectedSRSBuilder()
 
 # In-memory cache of current active analysis for rapid filtering
 current_analysis: Optional[Dict[str, Any]] = None
@@ -104,7 +107,7 @@ async def load_demo_srs():
     """
     PROFESSOR DEMO MODE:
     Loads a curated sample SRS with intentional flaws:
-      - Ambiguous requirement ('The system should be very fast')
+    - Ambiguous and incomplete requirements
       - Duplicate requirements (password reset variations)
       - Contradictory requirements (minimum 8 chars vs maximum 6 chars)
       - Functional & Non-Functional requirements
@@ -269,6 +272,39 @@ async def get_report_data():
     Returns complete report summary data.
     """
     return _get_active_analysis()
+
+
+@router.get("/corrected-srs", response_model=CorrectedSRSResponse)
+async def get_corrected_srs():
+    """Returns the corrected SRS representation for the active analysis."""
+    return corrected_srs_builder.build(_get_active_analysis())
+
+
+@router.get("/export/corrected/{export_format}")
+async def export_corrected_srs(export_format: str):
+    """Exports the corrected SRS as DOCX, PDF, or plain text."""
+    corrected = corrected_srs_builder.build(_get_active_analysis())
+    fmt = export_format.lower()
+    filename = f"ReqInsight_Corrected_SRS.{fmt}"
+    if fmt == "docx":
+        return Response(
+            content=ReportGenerator.generate_corrected_srs_docx(corrected),
+            media_type="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+            headers={"Content-Disposition": f"attachment; filename={filename}"}
+        )
+    if fmt == "pdf":
+        return Response(
+            content=ReportGenerator.generate_corrected_srs_pdf(corrected),
+            media_type="application/pdf",
+            headers={"Content-Disposition": f"attachment; filename={filename}"}
+        )
+    if fmt == "txt":
+        return Response(
+            content=ReportGenerator.generate_corrected_srs_txt(corrected),
+            media_type="text/plain",
+            headers={"Content-Disposition": f"attachment; filename={filename}"}
+        )
+    raise HTTPException(status_code=400, detail=f"Unsupported format '{export_format}'. Choose 'docx', 'pdf', or 'txt'.")
 
 
 @router.get("/export/{export_format}")

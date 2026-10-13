@@ -1,32 +1,19 @@
 import re
-from typing import List, Dict, Any
+from typing import Dict, List
+
+from backend.app.ml.ambiguity_service import AmbiguityService
 
 
 class SmellService:
-    """
-    Detects standard Requirement Smells (Femmer et al., IEEE TSE):
-      1. Ambiguous phrasing
-      2. Vague / Unquantified specifications
-      3. Incomplete structure
-      4. Subjective language
-      5. Non-measurable constraints
-      6. Weak / Optional modalities (escape clauses)
-      7. Complex / Run-on sentences
-    """
+    """Detect standard requirement smells using the ambiguity measurements."""
 
     WEAK_MODALS = [
-        (r"\b(can|could|may|might)\b", "Weak Modal", "Uses permissive modal verb instead of strict contractual 'shall' or 'must'."),
-        (r"\b(if\s+possible|if\s+practical|where\s+feasible)\b", "Escape Clause", "Contains subjective escape clause that weakens requirement bindingness."),
-        (r"\b(as\s+appropriate|as\s+needed|to\s+the\s+extent\s+possible)\b", "Unbounded Condition", "Contains unbounded conditional statement.")
+        (r"\b(can|could|may|might)\b", "Weak Modal", "Uses a permissive modal verb instead of a strict contractual modal."),
+        (r"\b(if\s+possible|if\s+practical|where\s+feasible)\b", "Escape Clause", "Contains a subjective escape clause."),
+        (r"\b(as\s+appropriate|as\s+needed|to\s+the\s+extent\s+possible)\b", "Unbounded Condition", "Contains an unbounded conditional statement."),
     ]
-
-    SUBJECTIVE_TERMS = [
-        r"\b(user[- ]friendly|intuitive|easy|simple|seamless|convenient|attractive|pleasing)\b"
-    ]
-
-    NON_MEASURABLE_TERMS = [
-        r"\b(fast|quick|efficient|high[- ]performance|scalable|reliable|robust)\b"
-    ]
+    SUBJECTIVE_TERMS = [r"\b(user[- ]friendly|intuitive|easy|simple|seamless|convenient|attractive|pleasing)\b"]
+    NON_MEASURABLE_TERMS = [r"\b(fast\w*|quick\w*|efficient\w*|high[- ]performance|scalab\w*|reliab\w*|robust\w*)\b"]
 
     def detect_smells(
         self,
@@ -34,71 +21,59 @@ class SmellService:
         is_ambiguous: bool = False,
         ambiguity_explanation: str = "",
         is_incomplete: bool = False,
-        incompleteness_explanation: str = ""
+        incompleteness_explanation: str = "",
     ) -> List[Dict[str, str]]:
-        """
-        Gathers all requirement smells with descriptive explanations and severity tags.
-        """
         smells: List[Dict[str, str]] = []
         lower = text.lower()
         words = text.split()
 
-        # 1. Ambiguity smell
         if is_ambiguous:
             smells.append({
                 "smell": "Ambiguous / Vague",
                 "description": ambiguity_explanation or "Contains ambiguous or vaguely quantified terminology.",
-                "severity": "danger"
+                "severity": "danger",
             })
-
-        # 2. Incompleteness smell
         if is_incomplete:
             smells.append({
                 "smell": "Incomplete Information",
-                "description": incompleteness_explanation or "Lacks required structural elements (actor, trigger, or format).",
-                "severity": "warning"
+                "description": incompleteness_explanation or "Lacks required structural elements.",
+                "severity": "warning",
             })
-
-        # 3. Subjective language smell
-        if any(re.search(pat, lower) for pat in self.SUBJECTIVE_TERMS):
+        if any(re.search(pattern, lower) for pattern in self.SUBJECTIVE_TERMS):
             smells.append({
                 "smell": "Subjective Language",
-                "description": "Expresses subjective user feelings rather than verifiable objective specifications.",
-                "severity": "warning"
+                "description": "Expresses subjective language rather than an objective specification.",
+                "severity": "warning",
             })
 
-        # 4. Non-measurable performance smell
-        has_non_meas = any(re.search(pat, lower) for pat in self.NON_MEASURABLE_TERMS)
-        has_numbers = bool(re.search(r"\b\d+([,\.]\d+)?\b", lower))
-        if has_non_meas and not has_numbers:
+        has_quality_attribute = any(
+            re.search(r"\b" + re.escape(attribute) + r"\b", lower)
+            for attribute in AmbiguityService.QUALITY_ATTRIBUTES
+        )
+        has_non_measurable_term = any(re.search(pattern, lower) for pattern in self.NON_MEASURABLE_TERMS)
+        if (has_quality_attribute or has_non_measurable_term) and not AmbiguityService.MEASUREMENT_PATTERN.search(lower):
             smells.append({
                 "smell": "Non-Measurable Constraint",
-                "description": "Quality attribute lacks verifiable engineering metrics (e.g. milliseconds, percentage, or volume).",
-                "severity": "danger"
+                "description": "Quality attribute lacks a verifiable number or unit.",
+                "severity": "danger",
             })
 
-        # 5. Weak modalities / Escape clauses
-        for pat, smell_name, desc in self.WEAK_MODALS:
-            if re.search(pat, lower):
-                smells.append({
-                    "smell": smell_name,
-                    "description": desc,
-                    "severity": "info"
-                })
+        for pattern, smell_name, description in self.WEAK_MODALS:
+            if re.search(pattern, lower):
+                smells.append({"smell": smell_name, "description": description, "severity": "info"})
                 break
 
-        # 6. Sentence complexity / Run-on sentence smell
         if len(words) > 35:
             smells.append({
                 "smell": "Complex / Run-On Sentence",
-                "description": f"Requirement is lengthy ({len(words)} words) and should be split into atomic requirements.",
-                "severity": "warning"
+                "description": f"Requirement is lengthy ({len(words)} words) and should be split.",
+                "severity": "warning",
             })
         elif lower.count(" and ") >= 3 or " and/or " in lower:
             smells.append({
                 "smell": "Compound Multi-Requirement",
-                "description": "Contains multiple conjoined statements ('and/or'); violates requirement atomicity.",
-                "severity": "warning"
+                "description": "Contains multiple conjoined statements and may violate atomicity.",
+                "severity": "warning",
             })
 
         return smells

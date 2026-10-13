@@ -14,6 +14,12 @@ class IncompletenessService:
       - Measurable Constraints
     """
 
+    PASSIVE_ACTIONS = (
+        "generated", "created", "deleted", "stored", "processed", "sent", "received",
+        "validated", "encrypted", "authenticated", "configured", "implemented",
+        "executed", "retrieved", "transmitted", "displayed", "calculated", "updated",
+    )
+
     def detect_incompleteness(self, text: str) -> Dict[str, Any]:
         """
         Inspects requirement sentence and flags missing structural attributes.
@@ -27,17 +33,18 @@ class IncompletenessService:
             r"\b(the\s+system|the\s+software|the\s+application|the\s+administrator|admin|users?|customers?|clients?|operator|cashier|manager)\b",
             lower
         ))
-        # Passive voice without agent: e.g. "Reports shall be generated."
-        is_passive_without_agent = bool(re.search(
-            r"\b(shall|must|should|is|are)\s+be\s+([a-z]+ed)\b",
-            lower
-        )) and not bool(re.search(r"\bby\s+(the\s+)?([a-z]+)\b", lower))
+        # Only known action participles count as passive; states such as
+        # "be considered" or "be acceptable" are not incomplete by themselves.
+        passive_pattern = r"\b(?:shall|must|should|will|is|are)\s+be\s+(?:" + "|".join(self.PASSIVE_ACTIONS) + r")\b"
+        is_passive_without_agent = bool(re.search(passive_pattern, lower)) and not bool(
+            re.search(r"\bby\s+(?:the\s+)?[a-z]+\b", lower)
+        )
 
         if not has_explicit_actor:
             missing_elements.append("Explicit Actor / Agent")
             reasons.append("Lacks an explicit executing agent (e.g. 'The system' or 'The administrator').")
-        elif is_passive_without_agent:
-            missing_elements.append("Executing Subject (Passive Voice)")
+        if is_passive_without_agent:
+            missing_elements.append("Passive Voice Without Agent")
             reasons.append("Uses passive voice without defining who or what initiates the process.")
 
         # 2. Check for Target / Specificity on generic verbs

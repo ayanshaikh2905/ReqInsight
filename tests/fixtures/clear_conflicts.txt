@@ -1,0 +1,20 @@
+REQ-001: The service shall accept requests only in English.
+REQ-002: The service shall reject English requests.
+REQ-003: The service shall respond within 2 seconds.
+REQ-004: The service shall respond within 5 seconds.
+REQ-005: The service shall return output only in JSON format.
+REQ-006: The service shall return output only in XML format.
+REQ-007: The service shall store customer records permanently.
+REQ-008: The service shall delete customer records immediately.
+REQ-009: The service shall require users to log in.
+REQ-010: The service shall allow anonymous access without login.
+REQ-011: The service shall operate offline without a network connection.
+REQ-012: The service shall operate online through the cloud.
+REQ-013: The classifier shall achieve accuracy of 95 percent.
+REQ-014: The classifier shall achieve accuracy of 60 percent.
+REQ-015: The service shall accept a maximum input length of 100 words.
+REQ-016: The service shall accept a minimum input length of 500 words.
+REQ-017: The service shall encrypt audit records using AES-256.
+REQ-018: The service shall generate a daily operational report.
+REQ-019: The service shall support encrypted backups.
+REQ-020: The service shall display the current service status.

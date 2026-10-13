@@ -1,0 +1,20 @@
+REQ-001: The service shall create a customer invoice identifier.
+REQ-002: The service shall archive the quarterly audit ledger.
+REQ-003: The service shall calculate shipping totals from package weight.
+REQ-004: The service shall display the warehouse entrance map.
+REQ-005: The service shall export the catalog in JSON format.
+REQ-006: The service shall send a receipt through electronic mail.
+REQ-007: The service shall record the shipment tracking code.
+REQ-008: The service shall update the inventory barcode.
+REQ-009: The service shall generate the monthly tax statement.
+REQ-010: The service shall validate the postal address checksum.
+REQ-011: The service shall import the supplier catalog archive.
+REQ-012: The service shall display the customer order timeline.
+REQ-013: The service shall create a support case identifier.
+REQ-014: The service shall calculate the basket subtotal.
+REQ-015: The service shall store the branch opening schedule.
+REQ-016: The service shall export the delivery manifest.
+REQ-017: The service shall display the product comparison table.
+REQ-018: The service shall record the equipment inspection result.
+REQ-019: The service shall create the employee shift roster.
+REQ-020: The service shall archive the signed contract reference.

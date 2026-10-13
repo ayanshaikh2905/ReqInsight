@@ -2,6 +2,7 @@ import { useNavigate } from 'react-router-dom';
 import { AlertTriangle } from 'lucide-react';
 import { useAnalysis } from '../context/AnalysisContext';
 import { PageHeader, EmptyState, StatCard } from '../components/Card';
+import { Badge } from '../components/Badge';
 
 export default function Conflicts() {
   const { analysis } = useAnalysis();
@@ -48,11 +49,13 @@ export default function Conflicts() {
                 <div className="px-4 py-2.5 flex items-center gap-2 border-b border-slate-800 bg-red-950/20">
                   <AlertTriangle className="w-4 h-4 text-red-400" />
                   <span className="text-xs font-bold text-red-300">{desc}</span>
+                  {c.attribute && <Badge variant="danger">{c.attribute}</Badge>}
                 </div>
                 <div className="p-4 grid md:grid-cols-2 gap-4">
-                  {[[c.req_a_id, c.req_a_text], [c.req_b_id, c.req_b_text]].map(([id, text], j) => (
+                  {[[c.req_a_id, c.req_a_text, c.value_a], [c.req_b_id, c.req_b_text, c.value_b]].map(([id, text, value], j) => (
                     <div key={j} className="rounded-lg bg-slate-800 p-3 space-y-1.5">
                       <span className="text-xs font-mono font-bold text-indigo-400">{id || `Req ${j + 1}`}</span>
+                      {value && <div className="text-xs text-red-300">Value: {value}</div>}
                       <p className="text-sm text-slate-200">{text || 'N/A'}</p>
                     </div>
                   ))}

@@ -26,9 +26,10 @@ class ExtractorService:
 
     # Explicit Requirement ID patterns
     ID_PREFIX_PATTERN = re.compile(
-        r"^\s*(?:\[?([A-Z]{2,6}[-_ ]?\d{1,4}[a-z]?)\]?|Requirement\s+(\d+(?:\.\d+)*)|(?:REQ|FR|NFR|SR|BR|UR)[-_ ]*(\d+))[:\.\-]?\s*",
-        re.IGNORECASE,
+        r"^\s*\[?((?:REQ|FR|NFR|SR|BR|UR|SRS)[-_ ]*\d{1,4}[a-z]?)\]?[:\.\-]?\s*"
     )
+
+    LIST_MARKER_PATTERN = re.compile(r"^\s*(?:\d+[\.)]|[-*\u2022])\s+")
 
     # Numbered pattern: e.g. "3.2.1 The system shall..."
     NUMBERED_PATTERN = re.compile(
@@ -79,6 +80,18 @@ class ExtractorService:
                     })
                     buf = []
                 current_section = stripped.strip("#* -:")
+                continue
+
+            # A list item is a separate candidate even when the previous line has no blank separator.
+            if self.LIST_MARKER_PATTERN.match(stripped):
+                if buf:
+                    paragraphs.append({
+                        "text": " ".join(buf),
+                        "line": buf_start_line,
+                    })
+                    buf = []
+                buf_start_line = line_idx
+                buf.append(stripped)
                 continue
 
             # Check if this line starts a new explicit requirement ID
