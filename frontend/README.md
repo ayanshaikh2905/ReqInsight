@@ -1,16 +1,20 @@
-# React + Vite
+# ReqInsight frontend
 
-This template provides a minimal setup to get React working in Vite with HMR and some Oxlint rules.
+React 19 + Vite + Tailwind. Talks to the FastAPI backend at `VITE_API_URL` (default `http://localhost:8000/api`).
 
-Currently, two official plugins are available:
+```bash
+npm install
+npm run dev      # http://localhost:5173
+npm run lint
+npm run build
+```
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
+## Structure
 
-## React Compiler
+- `src/index.css`: design tokens (light and dark themes as CSS variables) and the motion primitives.
+- `src/components`: shared UI (buttons, badges, collapse, segmented control, charts, progress view).
+- `src/context`: analysis state, theme, toasts.
+- `src/pages`: one lazy-loaded chunk per route.
+- `src/api/client.js`: fetch wrapper with timeouts, abort support and FastAPI error parsing.
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
-
-## Expanding the Oxlint configuration
-
-If you are developing a production application, we recommend using TypeScript with type-aware lint rules enabled. Check out the [TS template](https://github.com/vitejs/vite/tree/main/packages/create-vite/template-react-ts) for information on how to integrate TypeScript and Oxlint's TypeScript related rules in your project.
+Animation respects `prefers-reduced-motion`. Colours are semantic tokens (`bg-surface`, `text-muted`, `text-ok`, ...), so a new theme only needs new variable values.

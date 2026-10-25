@@ -1,11 +1,15 @@
-import { lazy, Suspense } from 'react';
-import { BrowserRouter, Routes, Route, Link } from 'react-router-dom';
-import { FileQuestion } from 'lucide-react';
+import { lazy } from 'react';
+import { BrowserRouter, Routes, Route } from 'react-router-dom';
+import { Compass } from 'lucide-react';
+import { ThemeProvider } from './context/ThemeContext';
+import { ToastProvider } from './context/ToastContext';
 import { AnalysisProvider } from './context/AnalysisContext';
 import Layout from './components/Layout';
-import { Spinner } from './components/Card';
+import { EmptyState } from './components/Card';
+import { LinkButton } from './components/Button';
+import { usePageTitle } from './hooks/usePageTitle';
 
-// Pages are split into their own chunks so the first load only fetches the current route.
+// Each page is its own chunk so the charting code only loads when needed.
 const Dashboard = lazy(() => import('./pages/Dashboard'));
 const UploadSRS = lazy(() => import('./pages/UploadSRS'));
 const Requirements = lazy(() => import('./pages/Requirements'));
@@ -18,56 +22,43 @@ const Evaluation = lazy(() => import('./pages/Evaluation'));
 const SettingsPage = lazy(() => import('./pages/SettingsPage'));
 const History = lazy(() => import('./pages/History'));
 
-function PageFallback() {
-  return (
-    <div className="flex items-center justify-center py-24">
-      <Spinner size="lg" />
-    </div>
-  );
-}
-
-function page(Component) {
-  return (
-    <Suspense fallback={<PageFallback />}>
-      <Component />
-    </Suspense>
-  );
-}
-
 function NotFound() {
+  usePageTitle('Page not found');
   return (
-    <div className="min-h-full flex items-center justify-center p-6">
-      <div className="text-center">
-        <FileQuestion className="w-10 h-10 text-slate-500 mx-auto mb-3" />
-        <h1 className="text-lg font-semibold text-white">Page not found</h1>
-        <p className="text-sm text-slate-400 mt-1 mb-4">That ReqInsight page does not exist.</p>
-        <Link to="/" className="inline-flex px-4 py-2 rounded-lg bg-indigo-600 text-white text-sm">Back to Dashboard</Link>
-      </div>
-    </div>
+    <EmptyState
+      icon={Compass}
+      title="Page not found"
+      description="That address doesn't match anything in ReqInsight."
+      action={<LinkButton to="/" variant="primary">Back to the dashboard</LinkButton>}
+    />
   );
 }
 
 export default function App() {
   return (
-    <AnalysisProvider>
-      <BrowserRouter>
-        <Routes>
-          <Route element={<Layout />}>
-            <Route index element={page(Dashboard)} />
-            <Route path="/upload" element={page(UploadSRS)} />
-            <Route path="/requirements" element={page(Requirements)} />
-            <Route path="/duplicates" element={page(Duplicates)} />
-            <Route path="/conflicts" element={page(Conflicts)} />
-            <Route path="/quality" element={page(QualityAnalysis)} />
-            <Route path="/artifacts" element={page(Artifacts)} />
-            <Route path="/report" element={page(Report)} />
-            <Route path="/history" element={page(History)} />
-            <Route path="/evaluation" element={page(Evaluation)} />
-            <Route path="/settings" element={page(SettingsPage)} />
-            <Route path="*" element={<NotFound />} />
-          </Route>
-        </Routes>
-      </BrowserRouter>
-    </AnalysisProvider>
+    <ThemeProvider>
+      <ToastProvider>
+        <AnalysisProvider>
+          <BrowserRouter>
+            <Routes>
+              <Route element={<Layout />}>
+                <Route index element={<Dashboard />} />
+                <Route path="/upload" element={<UploadSRS />} />
+                <Route path="/requirements" element={<Requirements />} />
+                <Route path="/duplicates" element={<Duplicates />} />
+                <Route path="/conflicts" element={<Conflicts />} />
+                <Route path="/quality" element={<QualityAnalysis />} />
+                <Route path="/artifacts" element={<Artifacts />} />
+                <Route path="/report" element={<Report />} />
+                <Route path="/history" element={<History />} />
+                <Route path="/evaluation" element={<Evaluation />} />
+                <Route path="/settings" element={<SettingsPage />} />
+                <Route path="*" element={<NotFound />} />
+              </Route>
+            </Routes>
+          </BrowserRouter>
+        </AnalysisProvider>
+      </ToastProvider>
+    </ThemeProvider>
   );
 }
