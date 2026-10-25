@@ -1,63 +1,112 @@
-export function Card({ children, className = '' }) {
+import { Link } from 'react-router-dom';
+import { AnimatedNumber } from './AnimatedNumber';
+
+export function Card({ children, className = '', as: Tag = 'section', ...props }) {
   return (
-    <div className={`bg-slate-900 border border-slate-800 rounded-xl ${className}`}>
+    <Tag className={`rounded-xl border border-line bg-surface ${className}`} {...props}>
       {children}
+    </Tag>
+  );
+}
+
+export function SectionTitle({ children, aside, className = '' }) {
+  return (
+    <div className={`mb-4 flex flex-wrap items-baseline justify-between gap-x-3 gap-y-0.5 ${className}`}>
+      <h2 className="text-[15px] font-semibold text-ink">{children}</h2>
+      {aside && <div className="text-xs text-muted">{aside}</div>}
     </div>
   );
 }
 
-export function StatCard({ label, value, icon: Icon, color = 'indigo', sub }) {
-  const colors = {
-    indigo: { bg: 'bg-indigo-900/40', icon: 'text-indigo-400', border: 'border-indigo-800/40' },
-    emerald: { bg: 'bg-emerald-900/40', icon: 'text-emerald-400', border: 'border-emerald-800/40' },
-    purple: { bg: 'bg-purple-900/40', icon: 'text-purple-400', border: 'border-purple-800/40' },
-    amber: { bg: 'bg-amber-900/40', icon: 'text-amber-400', border: 'border-amber-800/40' },
-    red: { bg: 'bg-red-900/40', icon: 'text-red-400', border: 'border-red-800/40' },
-    sky: { bg: 'bg-sky-900/40', icon: 'text-sky-400', border: 'border-sky-800/40' },
-  };
-  const c = colors[color] || colors.indigo;
+/** Plain number + label. Used in ruled strips instead of boxed cards. */
+export function Stat({ label, value, suffix, hint, to, tone = 'text-ink', decimals = 0, delay = 0 }) {
+  const body = (
+    <>
+      <div className={`font-display text-3xl font-semibold leading-none tracking-tight tabular-nums ${tone}`}>
+        {typeof value === 'number' ? <AnimatedNumber value={value} decimals={decimals} delay={delay} /> : value}
+        {suffix && <span className="ml-0.5 text-base font-medium text-faint">{suffix}</span>}
+      </div>
+      <div className="mt-2 text-xs text-muted">{label}</div>
+      {hint && <div className="mt-0.5 text-xs text-faint">{hint}</div>}
+    </>
+  );
+  const base = 'block px-5 py-4';
+  return to ? (
+    <Link to={to} className={`${base} transition-colors hover:bg-raised`}>
+      {body}
+    </Link>
+  ) : (
+    <div className={base}>{body}</div>
+  );
+}
+
+const STRIP_COLS = {
+  3: 'sm:grid-cols-3 sm:[&>*:nth-child(n+4)]:border-t sm:[&>*:not(:nth-child(3n+1))]:border-l',
+  4: 'sm:grid-cols-4 sm:[&>*:nth-child(n+5)]:border-t sm:[&>*:not(:nth-child(4n+1))]:border-l',
+};
+
+export function StatStrip({ children, cols = 4, className = '' }) {
   return (
-    <div className={`rounded-xl border ${c.border} ${c.bg} p-4 flex items-start gap-3`}>
-      <div className={`w-9 h-9 rounded-lg bg-slate-800 flex items-center justify-center flex-shrink-0`}>
-        <Icon className={`w-4 h-4 ${c.icon}`} />
-      </div>
-      <div className="min-w-0">
-        <div className="text-2xl font-bold text-white">{value}</div>
-        <div className="text-xs text-slate-400 font-medium mt-0.5 truncate">{label}</div>
-        {sub && <div className="text-xs text-slate-500 mt-0.5">{sub}</div>}
-      </div>
+    <div
+      className={`grid grid-cols-2 overflow-hidden rounded-xl border border-line bg-surface [&>*]:border-line max-sm:[&>*:nth-child(n+3)]:border-t max-sm:[&>*:nth-child(even)]:border-l ${STRIP_COLS[cols]} ${className}`}
+    >
+      {children}
     </div>
   );
 }
 
 export function PageHeader({ title, subtitle, actions }) {
   return (
-    <div className="flex items-start justify-between mb-6">
-      <div>
-        <h1 className="text-xl font-bold text-white">{title}</h1>
-        {subtitle && <p className="text-sm text-slate-400 mt-1">{subtitle}</p>}
+    <header className="mb-8 flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
+      <div className="min-w-0">
+        <h1 className="font-display text-[28px] font-semibold leading-tight tracking-tight text-ink">{title}</h1>
+        {subtitle && <p className="mt-1.5 max-w-2xl text-sm text-muted">{subtitle}</p>}
       </div>
-      {actions && <div className="flex items-center gap-2">{actions}</div>}
+      {actions && <div className="flex flex-wrap items-center gap-2">{actions}</div>}
+    </header>
+  );
+}
+
+export function EmptyState({ icon: Icon, title, description, action, className = '' }) {
+  return (
+    <div
+      className={`flex flex-col items-center justify-center rounded-xl border border-dashed border-line px-6 py-20 text-center ${className}`}
+    >
+      {Icon && (
+        <div className="mb-4 flex h-11 w-11 items-center justify-center rounded-full border border-line bg-surface text-muted">
+          <Icon className="h-5 w-5" aria-hidden="true" />
+        </div>
+      )}
+      <h3 className="font-display text-lg font-semibold text-ink">{title}</h3>
+      {description && <p className="mt-1.5 max-w-sm text-sm text-muted">{description}</p>}
+      {action && <div className="mt-6 flex flex-wrap justify-center gap-2">{action}</div>}
     </div>
   );
 }
 
-export function EmptyState({ icon: Icon, title, description, action }) {
+export function Spinner({ size = 'md', className = '' }) {
+  const sz = size === 'sm' ? 'h-3.5 w-3.5' : size === 'lg' ? 'h-8 w-8' : 'h-5 w-5';
   return (
-    <div className="flex flex-col items-center justify-center py-24 text-center">
-      <div className="w-16 h-16 rounded-2xl bg-slate-800 flex items-center justify-center mb-4">
-        <Icon className="w-8 h-8 text-slate-500" />
-      </div>
-      <h3 className="text-base font-semibold text-slate-300 mb-2">{title}</h3>
-      <p className="text-sm text-slate-500 max-w-xs mb-6">{description}</p>
-      {action}
-    </div>
+    <span
+      role="status"
+      aria-label="Loading"
+      className={`inline-block shrink-0 animate-spin rounded-full border-2 border-current border-t-transparent opacity-70 ${sz} ${className}`}
+    />
   );
 }
 
-export function Spinner({ size = 'md' }) {
-  const sz = size === 'sm' ? 'w-4 h-4' : size === 'lg' ? 'w-10 h-10' : 'w-6 h-6';
+export function InlineError({ children, onRetry, className = '' }) {
   return (
-    <div className={`${sz} border-2 border-slate-700 border-t-indigo-500 rounded-full animate-spin`} />
+    <div
+      role="alert"
+      className={`flex items-start justify-between gap-4 rounded-lg border border-bad/30 bg-bad/10 px-4 py-3 text-sm text-bad ${className}`}
+    >
+      <span>{children}</span>
+      {onRetry && (
+        <button type="button" onClick={onRetry} className="shrink-0 font-medium underline underline-offset-2 hover:no-underline">
+          Retry
+        </button>
+      )}
+    </div>
   );
 }

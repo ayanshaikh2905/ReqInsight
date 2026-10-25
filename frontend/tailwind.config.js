@@ -1,30 +1,34 @@
+const token = (name) => `rgb(var(--c-${name}) / <alpha-value>)`;
+
 /** @type {import('tailwindcss').Config} */
 export default {
-  content: [
-    "./index.html",
-    "./src/**/*.{js,ts,jsx,tsx}",
-  ],
-  darkMode: 'class',
+  content: ['./index.html', './src/**/*.{js,jsx}'],
   theme: {
     extend: {
       colors: {
-        brand: {
-          50: '#eef2ff',
-          100: '#e0e7ff',
-          200: '#c7d2fe',
-          300: '#a5b4fc',
-          400: '#818cf8',
-          500: '#6366f1',
-          600: '#4f46e5',
-          700: '#4338ca',
-          800: '#3730a3',
-          900: '#312e81',
-          950: '#1e1b4b',
-        }
-      }
+        canvas: token('canvas'),
+        surface: token('surface'),
+        raised: token('raised'),
+        line: token('line'),
+        ink: token('ink'),
+        muted: token('muted'),
+        faint: token('faint'),
+        accent: token('accent'),
+        'on-accent': token('on-accent'),
+        ok: token('ok'),
+        warn: token('warn'),
+        bad: token('bad'),
+        info: token('info'),
+      },
+      fontFamily: {
+        display: ['"Bricolage Grotesque"', '"Hanken Grotesk"', 'system-ui', 'sans-serif'],
+        sans: ['"Hanken Grotesk"', 'system-ui', '-apple-system', 'Segoe UI', 'sans-serif'],
+        mono: ['"IBM Plex Mono"', 'ui-monospace', 'SFMono-Regular', 'Menlo', 'monospace'],
+      },
+      transitionTimingFunction: {
+        out: 'cubic-bezier(0.16, 1, 0.3, 1)',
+      },
     },
   },
   plugins: [],
-}
-
-
+};

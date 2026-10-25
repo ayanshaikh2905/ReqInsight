@@ -1,144 +1,180 @@
-import { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { Star, AlertCircle, CheckCircle2, ChevronDown, ChevronUp } from 'lucide-react';
-import {
-  RadarChart, Radar, PolarGrid, PolarAngleAxis, ResponsiveContainer,
-  BarChart, Bar, XAxis, YAxis, Tooltip, Cell
-} from 'recharts';
+import { useMemo, useState } from 'react';
+import { Link } from 'react-router-dom';
+import { ChevronDown, Star } from 'lucide-react';
+import { PolarAngleAxis, PolarGrid, Radar, RadarChart, ResponsiveContainer } from 'recharts';
 import { useAnalysis } from '../context/AnalysisContext';
-import { PageHeader, EmptyState, StatCard } from '../components/Card';
-import { ScoreBadge, Badge } from '../components/Badge';
+import { useThemeColors } from '../context/ThemeContext';
+import { usePageTitle } from '../hooks/usePageTitle';
+import { Badge, ScoreBadge } from '../components/Badge';
+import { Card, PageHeader, SectionTitle, Stat, StatStrip } from '../components/Card';
+import { Collapse } from '../components/Collapse';
+import { NoAnalysis } from '../components/NoAnalysis';
+import { ScoreBars } from '../components/ScoreBars';
+import { Segmented } from '../components/Segmented';
+import { BANDS, DIMENSIONS, TONE, bandFor, toneForScore } from '../lib/quality';
 
-const SCORE_COLOR = (s) => s >= 85 ? '#10b981' : s >= 65 ? '#f59e0b' : '#ef4444';
-
-function RequirementScoreRow({ req }) {
-  const [exp, setExp] = useState(false);
-  const color = SCORE_COLOR(req.quality_score);
-  const breakdown = req.quality_breakdown || {};
+function ScoreRow({ req }) {
+  const [open, setOpen] = useState(false);
+  const tone = TONE[bandFor(req.quality_score).tone];
+  const id = `score-${req.id}`;
   return (
-    <div className="border border-slate-800 rounded-lg">
-      <div
-        onClick={() => setExp(!exp)}
-        className="flex items-center gap-3 px-4 py-3 cursor-pointer hover:bg-slate-800/40 transition-colors"
+    <li className="relative overflow-hidden rounded-xl border border-line bg-surface">
+      <span className={`absolute inset-y-0 left-0 w-1 ${tone.bg}`} aria-hidden="true" />
+      <button
+        type="button"
+        aria-expanded={open}
+        aria-controls={id}
+        onClick={() => setOpen((o) => !o)}
+        className="flex w-full items-center gap-3 py-3 pl-5 pr-4 text-left transition-colors hover:bg-raised/70"
       >
-        <span className="font-mono text-xs text-indigo-400 w-24 flex-shrink-0">{req.id}</span>
-        <div className="flex-1 min-w-0">
-          <div className="text-sm text-slate-300 truncate">{req.text}</div>
-        </div>
-        {req.is_ambiguous && <Badge variant="warning">Ambiguous</Badge>}
-        {req.is_incomplete && <Badge variant="danger">Incomplete</Badge>}
-        <div className="flex items-center gap-2 flex-shrink-0">
-          <div className="w-24 h-2 bg-slate-800 rounded-full overflow-hidden">
-            <div className="h-full rounded-full transition-all" style={{ width: `${req.quality_score}%`, background: color }} />
-          </div>
-          <ScoreBadge score={req.quality_score} />
-          {exp ? <ChevronUp className="w-4 h-4 text-slate-500" /> : <ChevronDown className="w-4 h-4 text-slate-500" />}
-        </div>
-      </div>
-      {exp && Object.keys(breakdown).length > 0 && (
-        <div className="px-4 pb-4 pt-2 border-t border-slate-800 bg-slate-900">
-          <p className="text-xs text-slate-500 mb-3">Score Breakdown</p>
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
-            {Object.entries(breakdown).map(([k, v]) => (
-              <div key={k} className="bg-slate-800 rounded-lg p-2 text-center">
-                <div className="text-lg font-bold" style={{ color: SCORE_COLOR(v) }}>{v}</div>
-                <div className="text-xs text-slate-400 mt-0.5 capitalize">{k.replace(/_/g, ' ')}</div>
-              </div>
-            ))}
+        <span className="w-24 shrink-0 font-mono text-xs text-accent">{req.id}</span>
+        <span className="min-w-0 flex-1 truncate text-sm text-ink">{req.text}</span>
+        <span className="hidden w-28 shrink-0 sm:block">
+          <span className="block h-1.5 overflow-hidden rounded-full bg-line/70">
+            <span className={`bar-run block h-full rounded-full ${tone.bg}`} style={{ width: `${req.quality_score}%` }} />
+          </span>
+        </span>
+        <ScoreBadge score={req.quality_score} className="shrink-0" />
+        <ChevronDown className={`h-4 w-4 shrink-0 text-faint transition-transform duration-300 ${open ? 'rotate-180' : ''}`} aria-hidden="true" />
+      </button>
+      <Collapse open={open} id={id}>
+        <div className="space-y-3 border-t border-line px-5 py-4 md:pl-[8.25rem]">
+          <ScoreBars scores={req.scores} className="max-w-xl" />
+          <div className="flex flex-wrap items-center gap-2">
+            {req.is_ambiguous && <Badge variant="warn">Ambiguous</Badge>}
+            {req.is_incomplete && <Badge variant="warn">Incomplete</Badge>}
+            {(req.smells || []).map((s, i) => <Badge key={i}>{s.smell}</Badge>)}
+            <Link to={`/requirements?focus=${encodeURIComponent(req.id)}`} className="ml-auto text-xs text-accent hover:underline">
+              Open in Requirements
+            </Link>
           </div>
         </div>
-      )}
-    </div>
+      </Collapse>
+    </li>
   );
 }
 
 export default function QualityAnalysis() {
+  usePageTitle('Quality');
   const { analysis } = useAnalysis();
-  const navigate = useNavigate();
+  const colors = useThemeColors();
+  const [band, setBand] = useState('all');
+  const [order, setOrder] = useState('low');
+
+  const reqs = useMemo(() => analysis?.requirements || [], [analysis]);
+
+  const averages = useMemo(
+    () =>
+      DIMENSIONS.map((d) => {
+        const vals = reqs.map((r) => r.scores?.[d]).filter((v) => typeof v === 'number');
+        return { dimension: d, value: vals.length ? Math.round(vals.reduce((a, b) => a + b, 0) / vals.length) : 0 };
+      }),
+    [reqs],
+  );
+
+  const counts = useMemo(
+    () => Object.fromEntries(BANDS.map((b) => [b.key, reqs.filter((r) => bandFor(r.quality_score).key === b.key).length])),
+    [reqs],
+  );
+
+  const list = useMemo(() => {
+    const filtered = band === 'all' ? reqs : reqs.filter((r) => bandFor(r.quality_score).key === band);
+    return [...filtered].sort((a, b) => (order === 'low' ? a.quality_score - b.quality_score : b.quality_score - a.quality_score));
+  }, [reqs, band, order]);
 
   if (!analysis) {
     return (
-      <div className="p-6">
-        <EmptyState
-          icon={Star}
-          title="No analysis data"
-          description="Load a demo SRS or upload a document first."
-          action={<button onClick={() => navigate('/upload')} className="px-4 py-2 rounded-lg bg-indigo-600 text-white text-sm">Go to Upload</button>}
-        />
-      </div>
+      <>
+        <PageHeader title="Quality" subtitle="How clear, complete and testable the requirements are." />
+        <NoAnalysis icon={Star} what="quality scores" />
+      </>
     );
   }
 
   const s = analysis.summary;
-  const reqs = analysis.requirements || [];
-  const sorted = [...reqs].sort((a, b) => a.quality_score - b.quality_score);
-
-  const histData = [
-    { label: '0-25', count: reqs.filter(r => r.quality_score < 25).length, fill: '#ef4444' },
-    { label: '25-50', count: reqs.filter(r => r.quality_score >= 25 && r.quality_score < 50).length, fill: '#f59e0b' },
-    { label: '50-75', count: reqs.filter(r => r.quality_score >= 50 && r.quality_score < 75).length, fill: '#6366f1' },
-    { label: '75-100', count: reqs.filter(r => r.quality_score >= 75).length, fill: '#10b981' },
-  ];
-
-  const totalRequirements = Math.max(1, s.total_requirements);
-  const radarData = [
-    { axis: 'Completeness', value: 100 - (s.incomplete_count / totalRequirements) * 100 },
-    { axis: 'Clarity', value: 100 - (s.ambiguous_count / totalRequirements) * 100 },
-    { axis: 'Consistency', value: 100 - (s.conflict_pairs_count / Math.max(1, s.total_requirements)) * 100 },
-    { axis: 'Uniqueness', value: 100 - (s.duplicate_pairs_count / Math.max(1, s.total_requirements)) * 100 },
-    { axis: 'Quality Avg', value: s.average_quality_score },
-  ];
+  const smelly = reqs.filter((r) => (r.smells || []).length > 0).length;
+  const maxCount = Math.max(...Object.values(counts), 1);
 
   return (
-    <div className="p-6 space-y-6 max-w-6xl">
+    <>
       <PageHeader
-        title="Quality Analysis"
-        subtitle="Composite quality scoring based on completeness, clarity, consistency, and uniqueness"
+        title="Quality"
+        subtitle="Each requirement is scored on clarity, completeness, specificity, consistency, testability and uniqueness."
       />
 
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-        <StatCard icon={Star} label="Average Quality" value={`${s.average_quality_score}/100`} color="amber" />
-        <StatCard icon={CheckCircle2} label="High Quality (≥85)" value={histData[3].count} color="emerald" />
-        <StatCard icon={AlertCircle} label="Poor Quality (<50)" value={histData[0].count + histData[1].count} color="red" />
-        <StatCard icon={AlertCircle} label="Smelly Requirements" value={reqs.filter(r => (r.smells || []).length > 0).length} color="amber" />
+      <StatStrip>
+        <Stat label="Average score" value={s.average_quality_score} decimals={1} tone={TONE[toneForScore(s.average_quality_score)].text} />
+        <Stat label="Strong (75 or higher)" value={counts.excellent + counts.good} tone="text-ok" delay={80} />
+        <Stat label="Needs work (below 60)" value={counts.poor} tone={counts.poor ? 'text-bad' : 'text-ink'} delay={160} />
+        <Stat label="With smells" value={smelly} delay={240} />
+      </StatStrip>
+
+      <div className="mt-6 grid gap-6 lg:grid-cols-2">
+        <Card className="p-5 sm:p-6">
+          <SectionTitle aside="average across requirements">Dimensions</SectionTitle>
+          <div className="grid items-center gap-4 sm:grid-cols-[1fr_auto]">
+            <div className="h-56" aria-hidden="true">
+              <ResponsiveContainer width="100%" height="100%">
+                <RadarChart data={averages} outerRadius="62%" margin={{ left: 30, right: 30 }}>
+                  <PolarGrid stroke={colors.line} />
+                  <PolarAngleAxis dataKey="dimension" tick={{ fill: colors.muted, fontSize: 11 }} tickFormatter={(v) => v[0].toUpperCase() + v.slice(1)} />
+                  <Radar dataKey="value" stroke={colors.accent} strokeWidth={2} fill={colors.accent} fillOpacity={0.22} animationDuration={1100} />
+                </RadarChart>
+              </ResponsiveContainer>
+            </div>
+            <ul className="space-y-1.5 text-sm sm:min-w-[9rem]">
+              {averages.map((a) => (
+                <li key={a.dimension} className="flex items-baseline justify-between gap-4">
+                  <span className="capitalize text-muted">{a.dimension}</span>
+                  <span className={`font-mono text-xs tabular-nums ${TONE[toneForScore(a.value)].text}`}>{a.value}</span>
+                </li>
+              ))}
+            </ul>
+          </div>
+        </Card>
+
+        <Card className="p-5 sm:p-6">
+          <SectionTitle aside="requirements per band">Score bands</SectionTitle>
+          <div className="space-y-5">
+            {BANDS.map((b, i) => (
+              <div key={b.key}>
+                <div className="mb-1.5 flex items-baseline justify-between text-sm">
+                  <span className="text-ink">{b.label} <span className="text-xs text-faint">{b.range}</span></span>
+                  <span className="font-mono text-xs tabular-nums text-muted">{counts[b.key]}</span>
+                </div>
+                <div className="h-2.5 overflow-hidden rounded-full bg-line/70">
+                  <div className={`bar-run h-full rounded-full ${TONE[b.tone].bg}`} style={{ width: `${(counts[b.key] / maxCount) * 100}%`, animationDelay: `${i * 90}ms` }} />
+                </div>
+              </div>
+            ))}
+          </div>
+        </Card>
       </div>
 
-      {/* Charts */}
-      <div className="grid md:grid-cols-2 gap-4">
-        <div className="bg-slate-900 border border-slate-800 rounded-xl p-4">
-          <h3 className="text-sm font-semibold text-slate-300 mb-4">Quality Score Histogram</h3>
-          <ResponsiveContainer width="100%" height={200}>
-            <BarChart data={histData} margin={{ top: 0, right: 0, left: -20, bottom: 0 }}>
-              <XAxis dataKey="label" tick={{ fill: '#94a3b8', fontSize: 11 }} />
-              <YAxis tick={{ fill: '#94a3b8', fontSize: 11 }} />
-              <Tooltip contentStyle={{ background: '#1e293b', border: '1px solid #334155', color: '#e2e8f0', fontSize: 12 }} />
-              <Bar dataKey="count" radius={[4, 4, 0, 0]}>
-                {histData.map((d, i) => <Cell key={i} fill={d.fill} />)}
-              </Bar>
-            </BarChart>
-          </ResponsiveContainer>
+      <section className="mt-10">
+        <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+          <h2 className="font-display text-lg font-semibold text-ink">All requirements</h2>
+          <div className="flex flex-wrap gap-3">
+            <Segmented
+              label="Score band"
+              value={band}
+              onChange={setBand}
+              options={[{ value: 'all', label: 'All', count: reqs.length }, ...BANDS.map((b) => ({ value: b.key, label: b.label, count: counts[b.key] }))]}
+            />
+            <Segmented
+              label="Sort order"
+              value={order}
+              onChange={setOrder}
+              options={[{ value: 'low', label: 'Lowest first' }, { value: 'high', label: 'Highest first' }]}
+            />
+          </div>
         </div>
-
-        <div className="bg-slate-900 border border-slate-800 rounded-xl p-4">
-          <h3 className="text-sm font-semibold text-slate-300 mb-4">Quality Radar</h3>
-          <ResponsiveContainer width="100%" height={200}>
-            <RadarChart data={radarData}>
-              <PolarGrid stroke="#334155" />
-              <PolarAngleAxis dataKey="axis" tick={{ fill: '#94a3b8', fontSize: 10 }} />
-              <Radar dataKey="value" fill="#6366f1" fillOpacity={0.3} stroke="#6366f1" strokeWidth={2} />
-              <Tooltip contentStyle={{ background: '#1e293b', border: '1px solid #334155', color: '#e2e8f0', fontSize: 12 }} />
-            </RadarChart>
-          </ResponsiveContainer>
-        </div>
-      </div>
-
-      {/* Sorted list */}
-      <div className="bg-slate-900 border border-slate-800 rounded-xl p-4">
-        <h3 className="text-sm font-semibold text-slate-300 mb-4">All Requirements — Sorted by Quality</h3>
-        <div className="space-y-2">
-          {sorted.map(req => <RequirementScoreRow key={req.id} req={req} />)}
-        </div>
-      </div>
-    </div>
+        {list.length === 0 ? (
+          <p className="rounded-xl border border-dashed border-line py-12 text-center text-sm text-muted">No requirements fall in this band.</p>
+        ) : (
+          <ul className="space-y-2.5">{list.map((r) => <ScoreRow key={r.id} req={r} />)}</ul>
+        )}
+      </section>
+    </>
   );
 }

@@ -1,138 +1,99 @@
-import { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { Sparkles, ChevronDown, ChevronUp } from 'lucide-react';
+import { useMemo, useState } from 'react';
+import { ChevronDown, Search, Sparkles } from 'lucide-react';
 import { useAnalysis } from '../context/AnalysisContext';
-import { PageHeader, EmptyState, Spinner } from '../components/Card';
-import { TypeBadge } from '../components/Badge';
-import { api } from '../api/client';
+import { usePageTitle } from '../hooks/usePageTitle';
+import { ArtifactPanel } from '../components/ArtifactPanel';
+import { ScoreBadge, TypeBadge } from '../components/Badge';
+import { EmptyState, PageHeader } from '../components/Card';
+import { Collapse } from '../components/Collapse';
+import { NoAnalysis } from '../components/NoAnalysis';
+import { Segmented } from '../components/Segmented';
+import { TONE, bandFor } from '../lib/quality';
 
-function ArtifactCard({ req }) {
-  const [expanded, setExpanded] = useState(false);
-  const [tab, setTab] = useState('story');
-  const [story, setStory] = useState(null);
-  const [ac, setAc] = useState(null);
-  const [rewrite, setRewrite] = useState(null);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState(null);
-
-  const generate = async () => {
-    if (tab === 'story' && story) return;
-    if (tab === 'ac' && ac) return;
-    if (tab === 'rewrite' && rewrite) return;
-    setLoading(true);
-    setError(null);
-    try {
-      if (tab === 'story') setStory(await api.generateUserStory(req.text));
-      else if (tab === 'ac') setAc(await api.generateAcceptanceCriteria(req.text));
-      else setRewrite(await api.rewrite(req.text));
-    } catch (e) {
-      setError(e.message);
-    } finally {
-      setLoading(false);
-    }
-  };
-
+function ArtifactRow({ req }) {
+  const [open, setOpen] = useState(false);
+  const tone = TONE[bandFor(req.quality_score).tone];
+  const id = `artifact-${req.id}`;
   return (
-    <div className="border border-slate-800 rounded-xl overflow-hidden">
-      <div
-        onClick={() => { setExpanded(!expanded); if (!expanded) generate(); }}
-        className="flex items-center gap-3 px-4 py-3 cursor-pointer hover:bg-slate-800/50 transition-colors"
+    <li className="relative overflow-hidden rounded-xl border border-line bg-surface">
+      <span className={`absolute inset-y-0 left-0 w-1 ${tone.bg}`} aria-hidden="true" />
+      <button
+        type="button"
+        aria-expanded={open}
+        aria-controls={id}
+        onClick={() => setOpen((o) => !o)}
+        className="flex w-full items-start gap-3 py-3.5 pl-5 pr-4 text-left transition-colors hover:bg-raised/70"
       >
-        <span className="font-mono text-xs text-indigo-400 w-24 flex-shrink-0">{req.id}</span>
+        <span className="w-24 shrink-0 pt-px font-mono text-xs text-accent">{req.id}</span>
         <TypeBadge type={req.type} />
-        <p className="flex-1 text-sm text-slate-300 truncate">{req.text}</p>
-        {expanded ? <ChevronUp className="w-4 h-4 text-slate-500" /> : <ChevronDown className="w-4 h-4 text-slate-500" />}
-      </div>
-      {expanded && (
-        <div className="bg-slate-900 border-t border-slate-800 p-4 space-y-3">
-          <div className="flex gap-1.5 rounded-lg bg-slate-800 p-1 w-fit">
-            {['story', 'ac', 'rewrite'].map(t => (
-              <button
-                key={t}
-                onClick={() => { setTab(t); if (t === 'story' && !story) api.generateUserStory(req.text).then(setStory);
-                  else if (t === 'ac' && !ac) api.generateAcceptanceCriteria(req.text).then(setAc);
-                  else if (t === 'rewrite' && !rewrite) api.rewrite(req.text).then(setRewrite); }}
-                className={`px-3 py-1.5 rounded-md text-xs font-medium transition-colors ${tab === t ? 'bg-slate-900 text-white shadow' : 'text-slate-400 hover:text-slate-300'}`}
-              >
-                {t === 'story' ? '📖 User Story' : t === 'ac' ? '✅ Acceptance Criteria' : '✏️ Rewritten'}
-              </button>
-            ))}
-          </div>
-          {loading ? (
-            <div className="flex items-center gap-2 py-4"><Spinner size="sm" /><span className="text-xs text-slate-400">Generating with LLM…</span></div>
-          ) : (
-            <div className="bg-slate-800 rounded-lg p-4 text-sm text-slate-200">
-              {error && <p className="text-red-400 text-xs">{error}</p>}
-              {tab === 'story' && story && (
-                <div>
-                  <p className="text-purple-300 font-semibold mb-2">📖 {story.user_story}</p>
-                  {story.acceptance_criteria?.length > 0 && (
-                    <ul className="space-y-1 text-slate-300 list-disc list-inside">
-                      {story.acceptance_criteria.map((c, i) => <li key={i}>{c}</li>)}
-                    </ul>
-                  )}
-                </div>
-              )}
-              {tab === 'ac' && ac && (
-                <ul className="space-y-1 text-slate-300 list-disc list-inside">
-                  {(ac.acceptance_criteria || []).map((c, i) => <li key={i}>{c}</li>)}
-                </ul>
-              )}
-              {tab === 'rewrite' && rewrite && (
-                <p className="text-slate-200 leading-relaxed">{rewrite.improved_text || rewrite.rewritten || JSON.stringify(rewrite)}</p>
-              )}
-              {((tab === 'story' && !story) || (tab === 'ac' && !ac) || (tab === 'rewrite' && !rewrite)) && (
-                <p className="text-slate-500 text-xs">Generating…</p>
-              )}
-            </div>
-          )}
+        <span className={`min-w-0 flex-1 text-sm text-ink ${open ? '' : 'truncate'}`}>{req.text}</span>
+        <ScoreBadge score={req.quality_score} className="shrink-0 pt-px" />
+        <ChevronDown className={`mt-0.5 h-4 w-4 shrink-0 text-faint transition-transform duration-300 ${open ? 'rotate-180' : ''}`} aria-hidden="true" />
+      </button>
+      <Collapse open={open} id={id}>
+        <div className="border-t border-line px-5 py-5 md:pl-[8.25rem]">
+          <ArtifactPanel text={req.text} auto />
         </div>
-      )}
-    </div>
+      </Collapse>
+    </li>
   );
 }
 
 export default function Artifacts() {
+  usePageTitle('Artifacts');
   const { analysis } = useAnalysis();
-  const navigate = useNavigate();
   const [search, setSearch] = useState('');
+  const [order, setOrder] = useState('low');
+
+  const reqs = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    const list = (analysis?.requirements || []).filter(
+      (r) => !q || r.text.toLowerCase().includes(q) || r.id.toLowerCase().includes(q),
+    );
+    return order === 'low' ? [...list].sort((a, b) => a.quality_score - b.quality_score) : list;
+  }, [analysis, search, order]);
 
   if (!analysis) {
     return (
-      <div className="p-6">
-        <EmptyState
-          icon={Sparkles}
-          title="No analysis data"
-          description="Load a demo SRS or upload a document first."
-          action={<button onClick={() => navigate('/upload')} className="px-4 py-2 rounded-lg bg-indigo-600 text-white text-sm">Go to Upload</button>}
-        />
-      </div>
+      <>
+        <PageHeader title="Artifacts" subtitle="User stories, acceptance criteria and cleaner wording for each requirement." />
+        <NoAnalysis icon={Sparkles} what="generated artifacts" />
+      </>
     );
   }
 
-  const reqs = (analysis.requirements || []).filter(r =>
-    !search || r.text.toLowerCase().includes(search.toLowerCase()) || r.id.toLowerCase().includes(search.toLowerCase())
-  );
-
   return (
-    <div className="p-6 space-y-4 max-w-5xl">
+    <>
       <PageHeader
-        title="Generated Artifacts"
-        subtitle="AI-generated user stories, acceptance criteria, and rewritten requirements using LLM"
+        title="Artifacts"
+        subtitle="Open a requirement to generate a user story, Given/When/Then criteria, or a cleaner rewrite. Results are generated on demand."
       />
-      <div className="flex gap-2 items-center bg-slate-800 rounded-lg px-3 py-2 border border-slate-700">
-        <Sparkles className="w-4 h-4 text-purple-400" />
-        <input
-          value={search}
-          onChange={e => setSearch(e.target.value)}
-          placeholder="Filter requirements…"
-          className="flex-1 bg-transparent text-sm text-slate-200 placeholder:text-slate-500 focus:outline-none"
+
+      <div className="mb-5 flex flex-wrap items-center gap-3">
+        <div className="relative min-w-[220px] flex-1">
+          <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-faint" aria-hidden="true" />
+          <input
+            type="search"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder="Filter by text or ID"
+            aria-label="Filter requirements"
+            className="h-10 w-full rounded-lg border border-line bg-surface pl-9 pr-3 text-sm text-ink outline-none transition-colors placeholder:text-faint focus:border-accent"
+          />
+        </div>
+        <Segmented
+          label="Sort order"
+          value={order}
+          onChange={setOrder}
+          options={[{ value: 'low', label: 'Weakest first' }, { value: 'doc', label: 'Document order' }]}
         />
       </div>
-      <p className="text-xs text-slate-500">Click a requirement to expand it and generate AI artifacts on demand.</p>
-      <div className="space-y-2">
-        {reqs.map(req => <ArtifactCard key={req.id} req={req} />)}
-      </div>
-    </div>
+
+      {reqs.length === 0 ? (
+        <EmptyState icon={Search} title="No requirements match" description="Try a different search term." />
+      ) : (
+        <ul className="space-y-2.5">{reqs.map((r) => <ArtifactRow key={r.id} req={r} />)}</ul>
+      )}
+    </>
   );
 }
