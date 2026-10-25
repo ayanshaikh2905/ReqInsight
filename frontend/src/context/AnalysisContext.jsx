@@ -81,6 +81,29 @@ export function AnalysisProvider({ children }) {
     [runAnalysis],
   );
 
+  // Re-open a stored run (History page) and make it the active analysis.
+  const loadRun = useCallback(
+    (runId, docLabel) => runAnalysis(() => api.activateRun(runId), docLabel || 'Saved analysis'),
+    [runAnalysis],
+  );
+
+  // After a refresh, restore the most recent stored run instead of starting empty.
+  useEffect(() => {
+    let cancelled = false;
+    api
+      .listHistory(1)
+      .then((runs) => (runs.length ? api.activateRun(runs[0].run_id) : null))
+      .then((result) => {
+        if (cancelled || !result) return;
+        setAnalysis((prev) => prev ?? result);
+        setCurrentDoc((prev) => prev ?? result.document_name);
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
   const clearAnalysis = useCallback(() => {
     runId.current += 1;
     stopTimers();
@@ -96,9 +119,9 @@ export function AnalysisProvider({ children }) {
   const value = useMemo(
     () => ({
       analysis, loading, error, progress, currentDoc,
-      loadDemo, uploadFile, analyzeText, clearAnalysis, clearError,
+      loadDemo, uploadFile, analyzeText, loadRun, clearAnalysis, clearError,
     }),
-    [analysis, loading, error, progress, currentDoc, loadDemo, uploadFile, analyzeText, clearAnalysis, clearError],
+    [analysis, loading, error, progress, currentDoc, loadDemo, uploadFile, analyzeText, loadRun, clearAnalysis, clearError],
   );
 
   return <AnalysisContext.Provider value={value}>{children}</AnalysisContext.Provider>;

@@ -30,7 +30,7 @@ export default function UploadSRS() {
   const { loading, error, progress, currentDoc, uploadFile, analyzeText, loadDemo } = useAnalysis();
   const navigate = useNavigate();
   const [file, setFile] = useState(null);
-  const [threshold, setThreshold] = useState(0.85);
+  const [threshold, setThreshold] = useState(null); // null: use the value saved in Settings
   const [mode, setMode] = useState('file');
   const [text, setText] = useState('');
   const [rejection, setRejection] = useState(null);
@@ -163,7 +163,7 @@ export default function UploadSRS() {
           <Card className="p-5">
             <div className="flex items-baseline justify-between">
               <label htmlFor="threshold" className="text-sm font-semibold text-ink">Duplicate sensitivity</label>
-              <span className="font-mono text-sm tabular-nums text-accent">{threshold.toFixed(2)}</span>
+              <span className="font-mono text-sm tabular-nums text-accent">{(threshold ?? 0.85).toFixed(2)}</span>
             </div>
             <input
               id="threshold"
@@ -171,7 +171,7 @@ export default function UploadSRS() {
               min="0.5"
               max="0.99"
               step="0.01"
-              value={threshold}
+              value={threshold ?? 0.85}
               onChange={(e) => setThreshold(parseFloat(e.target.value))}
               className="mt-4 w-full accent-[rgb(var(--c-accent))]"
             />
@@ -180,7 +180,7 @@ export default function UploadSRS() {
               <span>Exact</span>
             </div>
             <p className="mt-3 text-xs leading-relaxed text-muted">
-              Requirement pairs at or above this similarity are flagged as duplicates. It applies to uploaded files. Pasted text uses the value saved in Settings.
+              Requirement pairs at or above this similarity are flagged as duplicates. Leave the slider alone to use the value saved in Settings. Pasted text always uses the saved value.
             </p>
           </Card>
 

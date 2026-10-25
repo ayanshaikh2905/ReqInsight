@@ -1,5 +1,5 @@
 import re
-from typing import List, Dict, Any, Optional
+from typing import Iterable, List, Dict, Any, Optional
 import spacy
 
 
@@ -43,11 +43,21 @@ class NERService:
     def __init__(self):
         self.nlp = None
         self._load_spacy()
+        # Pre-compiled once instead of building two regexes per term per requirement.
+        self._tech_patterns = [
+            (term, re.compile(r"\b" + re.escape(term) + r"\b", re.IGNORECASE))
+            for term in sorted(self.KNOWN_TECHS)
+        ]
+        self._data_patterns = [
+            (term, re.compile(r"\b" + re.escape(term) + r"\b", re.IGNORECASE))
+            for term in sorted(self.KNOWN_DATA)
+        ]
 
     def _load_spacy(self):
         """Loads spacy model with fallback if missing."""
         try:
-            self.nlp = spacy.load("en_core_web_sm")
+            # The lemmatizer output is never read, so skip it.
+            self.nlp = spacy.load("en_core_web_sm", disable=["lemmatizer"])
         except Exception:
             try:
                 self.nlp = spacy.blank("en")
@@ -55,18 +65,27 @@ class NERService:
                 print(f"[NERService] Could not load spaCy: {e}")
                 self.nlp = None
 
+    def extract_entities_batch(self, texts: List[str], batch_size: int = 64) -> List[List[Dict[str, str]]]:
+        """Extracts entities for many requirements, parsing them in spaCy batches."""
+        if self.nlp is None:
+            return [self._extract(text, None) for text in texts]
+        docs: Iterable = self.nlp.pipe(texts, batch_size=batch_size)
+        return [self._extract(text, doc) for text, doc in zip(texts, docs)]
+
     def extract_entities(self, text: str) -> List[Dict[str, str]]:
         """
         Extracts verified requirement entities. Strictly avoids hallucination.
         """
+        doc = self.nlp(text) if self.nlp is not None else None
+        return self._extract(text, doc)
+
+    def _extract(self, text: str, doc) -> List[Dict[str, str]]:
         entities: List[Dict[str, str]] = []
         seen = set()
-        lower = text.lower()
 
         # 1. spaCy Linguistic Parse (Subject, Object, Proper Nouns)
-        if self.nlp is not None:
-            doc = self.nlp(text)
-            
+        if doc is not None:
+
             # Extract spaCy standard NER entities (ORG, PRODUCT, GPE, MONEY, TIME, PERCENT)
             for ent in doc.ents:
                 val = ent.text.strip()
@@ -140,11 +159,12 @@ class NERService:
                         seen.add(clean_obj.lower())
 
         # 2. Direct rule-based scan for known domain technologies and data items
-        for tech in self.KNOWN_TECHS:
-            if re.search(r"\b" + re.escape(tech) + r"\b", lower) and tech not in seen:
-                # Find original casing from text
-                m = re.search(r"\b" + re.escape(tech) + r"\b", text, re.IGNORECASE)
-                original_cased = m.group(0) if m else tech
+        for tech, pattern in self._tech_patterns:
+            if tech in seen:
+                continue
+            m = pattern.search(text)
+            if m:
+                original_cased = m.group(0)
                 entities.append({
                     "text": original_cased,
                     "category": "TECHNOLOGY",
@@ -152,10 +172,12 @@ class NERService:
                 })
                 seen.add(tech)
 
-        for data in self.KNOWN_DATA:
-            if re.search(r"\b" + re.escape(data) + r"\b", lower) and data not in seen:
-                m = re.search(r"\b" + re.escape(data) + r"\b", text, re.IGNORECASE)
-                original_cased = m.group(0) if m else data
+        for data, pattern in self._data_patterns:
+            if data in seen:
+                continue
+            m = pattern.search(text)
+            if m:
+                original_cased = m.group(0)
                 entities.append({
                     "text": original_cased,
                     "category": "DATA",

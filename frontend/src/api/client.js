@@ -68,10 +68,11 @@ export const isAbort = (err) => err?.name === 'AbortError';
 
 export const api = {
   loadDemoSRS: () => json('/demo-srs', { timeout: ANALYSIS_TIMEOUT }),
-  uploadDocument: (file, threshold = 0.85) => {
+  uploadDocument: (file, threshold) => {
     const fd = new FormData();
     fd.append('file', file);
-    fd.append('threshold', threshold);
+    // Omitted threshold: the backend uses the value saved in Settings.
+    if (threshold != null) fd.append('threshold', threshold);
     return json('/upload', { method: 'POST', body: fd, timeout: ANALYSIS_TIMEOUT });
   },
   analyzeText: (text, documentName = 'Pasted SRS') =>
@@ -96,6 +97,10 @@ export const api = {
   generateAcceptanceCriteria: (text, opts) => json('/acceptance-criteria', jsonBody('POST', { text }, opts)),
   exportReport: (format) => request(`/export/${format}`, { timeout: 90_000 }),
   getCorrectedSRS: (opts) => json('/corrected-srs', opts),
+  listHistory: (limit = 50, opts) => json(`/history?limit=${limit}`, opts),
+  activateRun: (runId) => json(`/history/${encodeURIComponent(runId)}/activate`, { method: 'POST' }),
+  deleteRun: (runId) => json(`/history/${encodeURIComponent(runId)}`, { method: 'DELETE' }),
+  compareRuns: (base, target, opts) => json(`/compare?${new URLSearchParams({ base, target })}`, opts),
   exportCorrectedSRS: (format) =>
     request(`/export/corrected/${format}`, { timeout: 90_000 }).then((r) => r.blob()),
 };

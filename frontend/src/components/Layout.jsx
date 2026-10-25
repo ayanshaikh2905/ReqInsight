@@ -2,7 +2,7 @@ import { Suspense, useCallback, useEffect, useLayoutEffect, useRef, useState } f
 import { NavLink, Outlet, useLocation } from 'react-router-dom';
 import {
   Activity, BookOpen, ChevronsLeft, ChevronsRight, Copy, FileText, GitMerge, LayoutDashboard,
-  Menu, Moon, Settings, Sparkles, Star, Sun, Upload, X,
+  History as HistoryIcon, Menu, Moon, Settings, Sparkles, Star, Sun, Upload, X,
 } from 'lucide-react';
 import { useAnalysis } from '../context/AnalysisContext';
 import { useTheme } from '../context/ThemeContext';
@@ -32,6 +32,7 @@ const NAV_GROUPS = [
     items: [
       { to: '/artifacts', icon: Sparkles, label: 'Artifacts' },
       { to: '/report', icon: BookOpen, label: 'Report' },
+      { to: '/history', icon: HistoryIcon, label: 'History & Compare' },
       { to: '/evaluation', icon: Activity, label: 'Evaluation' },
     ],
   },

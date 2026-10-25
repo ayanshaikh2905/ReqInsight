@@ -190,7 +190,26 @@ class ExtractorService:
                     })
                     req_counter += 1
 
-        return extracted
+        return self._ensure_unique_ids(extracted)
+
+    @staticmethod
+    def _ensure_unique_ids(requirements: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+        """Suffixes repeated IDs (REQ-001, REQ-001-2, ...) so every requirement is addressable."""
+        seen: Dict[str, int] = {}
+        taken = {r["id"] for r in requirements}
+        for req in requirements:
+            base = req["id"]
+            if base not in seen:
+                seen[base] = 1
+                continue
+            seen[base] += 1
+            candidate = f"{base}-{seen[base]}"
+            while candidate in taken:
+                seen[base] += 1
+                candidate = f"{base}-{seen[base]}"
+            taken.add(candidate)
+            req["id"] = candidate
+        return requirements
 
     def is_requirement_candidate(self, sentence: str) -> bool:
         """

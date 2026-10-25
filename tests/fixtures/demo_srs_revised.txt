@@ -1,0 +1,28 @@
+# Software Requirements Specification (SRS) - Revision 2
+## Project: Academic E-Commerce & Identity Management Portal (Demo Specification)
+
+### 1. User Authentication & Session Management
+REQ-001: The system shall allow registered users to log in using their credentials.
+REQ-002: The system shall load every catalogue page within 1.5 seconds for 95% of requests.
+REQ-003: The system shall respond within 2 seconds under standard operational workload.
+REQ-004: Users shall be able to reset their password through a single-use email link that expires after 30 minutes.
+
+### 2. Analytics & Reporting
+REQ-006: The administrator shall generate monthly sales reports.
+REQ-007: The administrator shall generate reports using PostgreSQL and export them to PDF format.
+REQ-008: The platform shall provide interactive sales summary charts for quarterly reviews.
+
+### 3. Scalability & System Performance
+REQ-009: The system shall support at least 10,000 concurrent users.
+REQ-011: Database transactions shall maintain an average commit latency of under 50 milliseconds.
+
+### 4. Security & Cryptographic Policies
+REQ-012: Passwords must contain at least 8 characters.
+REQ-014: All sensitive customer payment records must be encrypted at rest using AES-256 cipher standard.
+REQ-015: The system shall enforce role-based access control (RBAC) for all administrative endpoints.
+
+### 5. Order Tracking & Customer Service
+REQ-016: The system shall allow customers to track orders and view shipment status.
+REQ-017: Customers shall receive real-time email notifications when their order status changes.
+REQ-018: The application shall validate credit card numbers using the Luhn algorithm before submission.
+REQ-019: The system should provide various helpful dashboards as needed.

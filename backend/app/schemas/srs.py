@@ -116,11 +116,13 @@ class AnalysisSummary(BaseModel):
 class AnalysisResponse(BaseModel):
     document_name: str
     document_text: Optional[str] = None
+    created_at: Optional[str] = None
     summary: AnalysisSummary
     requirements: List[RequirementItem]
     duplicates: List[DuplicatePair] = Field(default_factory=list)
     conflicts: List[ConflictPair] = Field(default_factory=list)
     topics: List[TopicInfo] = Field(default_factory=list)
+    run_id: Optional[str] = None
 
 
 class CorrectedRequirement(BaseModel):
@@ -195,12 +197,14 @@ class EvaluationMetrics(BaseModel):
 
 
 class SettingsConfig(BaseModel):
-    similarity_threshold: float = 0.85
+    similarity_threshold: float = Field(0.85, ge=0.5, le=0.99)
     llm_provider: str = "fallback"  # openai, groq, ollama, mistral, fallback
     llm_model: str = "gpt-4o-mini"
     llm_api_key: Optional[str] = ""
     llm_api_base: Optional[str] = ""
     use_local_fallback: bool = True
+    # Read-only on responses: whether a key is saved (the key itself is never returned).
+    llm_api_key_set: bool = False
 
 
 class RewriteRequest(BaseModel):
@@ -242,3 +246,79 @@ class AcceptanceCriteriaResponse(BaseModel):
 class AnalyzeTextRequest(BaseModel):
     text: str
     document_name: Optional[str] = "Manual Input SRS"
+
+
+class RunSummary(BaseModel):
+    run_id: str
+    document_name: Optional[str] = None
+    created_at: Optional[str] = None
+    total_requirements: int = 0
+    average_quality_score: float = 0.0
+    ambiguous_count: int = 0
+    incomplete_count: int = 0
+    duplicate_pairs_count: int = 0
+    conflict_pairs_count: int = 0
+
+
+class MetricDelta(BaseModel):
+    before: float
+    after: float
+    delta: float
+    direction: str  # better | worse | same | neutral
+
+
+class RunHeader(BaseModel):
+    run_id: Optional[str] = None
+    document_name: Optional[str] = None
+    created_at: Optional[str] = None
+    summary: Dict[str, Any] = Field(default_factory=dict)
+
+
+class RequirementBrief(BaseModel):
+    id: Optional[str] = None
+    text: Optional[str] = None
+    quality_score: Optional[int] = None
+    issues: List[str] = Field(default_factory=list)
+
+
+class RequirementChange(BaseModel):
+    base_id: Optional[str] = None
+    target_id: Optional[str] = None
+    base_text: Optional[str] = None
+    target_text: Optional[str] = None
+    text_changed: bool
+    match_similarity: float
+    base_score: Optional[int] = None
+    target_score: Optional[int] = None
+    score_delta: int
+    resolved_issues: List[str] = Field(default_factory=list)
+    new_issues: List[str] = Field(default_factory=list)
+
+
+class RequirementDiff(BaseModel):
+    matched: int
+    unchanged: int
+    improved: int
+    regressed: int
+    changed: List[RequirementChange] = Field(default_factory=list)
+    added: List[RequirementBrief] = Field(default_factory=list)
+    removed: List[RequirementBrief] = Field(default_factory=list)
+
+
+class ConflictBrief(BaseModel):
+    req_a_id: str
+    req_b_id: str
+    req_a_text: Optional[str] = None
+    req_b_text: Optional[str] = None
+    conflict_type: Optional[str] = None
+    attribute: Optional[str] = None
+
+
+class ComparisonResponse(BaseModel):
+    base: RunHeader
+    target: RunHeader
+    verdict: str  # improved | regressed | unchanged
+    summary_delta: Dict[str, MetricDelta]
+    issues: Dict[str, int]
+    requirements: RequirementDiff
+    conflicts: Dict[str, List[ConflictBrief]]

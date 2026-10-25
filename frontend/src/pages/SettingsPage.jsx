@@ -157,7 +157,7 @@ export default function SettingsPage() {
             <Row label="API base URL" htmlFor="llm_api_base" description="Optional. Set this for self-hosted or compatible endpoints.">
               <input id="llm_api_base" value={draft.llm_api_base || ''} onChange={(e) => update('llm_api_base', e.target.value)} placeholder="https://api.example.com/v1" className={inputClass} />
             </Row>
-            <Row label="API key" htmlFor="llm_api_key" description="Held by the running backend for this session only.">
+            <Row label="API key" htmlFor="llm_api_key" description="Kept on the server and never shown again. Leave blank to keep the saved key.">
               <div className="relative">
                 <input
                   id="llm_api_key"
@@ -165,7 +165,7 @@ export default function SettingsPage() {
                   autoComplete="off"
                   value={draft.llm_api_key || ''}
                   onChange={(e) => update('llm_api_key', e.target.value)}
-                  placeholder="Paste a key"
+                  placeholder={draft.llm_api_key_set ? '•••••••• saved' : 'Paste a key'}
                   className={`${inputClass} pr-10`}
                 />
                 <button

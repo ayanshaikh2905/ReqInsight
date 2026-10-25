@@ -104,6 +104,10 @@ export default function Evaluation() {
             <MetricCard title="Duplicate detection" caption={metrics.duplicates?.method} data={metrics.duplicates} />
           </div>
 
+          <p className="text-xs text-faint">
+            These benchmark sets are small. Treat the scores as sanity checks, not production accuracy figures.
+          </p>
+
           {gen && (
             <Card className="p-5 sm:p-6">
               <h2 className="font-display text-base font-semibold text-ink">Rewrite overlap</h2>

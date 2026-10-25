@@ -1,6 +1,7 @@
 import os
 import json
 import requests
+from concurrent.futures import ThreadPoolExecutor
 from typing import Dict, Any, Optional, List
 from backend.app.rag.rag_service import RAGService
 from backend.app.ml.rewriting_service import RewritingService
@@ -49,11 +50,10 @@ class LLMService:
           2. If live API is active, prompts LLM with strict validation.
           3. Otherwise, utilizes deterministic rule-based template generation.
         """
-        # Retrieve context from RAG
-        rag_context = self.rag.build_augmented_context(original_text)
-
         if self.is_api_configured():
             try:
+                # RAG context is only needed to augment a live prompt.
+                rag_context = self.rag.build_augmented_context(original_text)
                 llm_result = self._call_llm_api(original_text, rag_context)
                 validated = self.validate_llm_output(original_text, llm_result)
                 if validated:
@@ -73,6 +73,18 @@ class LLMService:
             "generation_source": "Deterministic IEEE 830 & Gherkin Engine (Offline Mode)",
             "validation_passed": True
         }
+
+    def enhance_requirements(self, texts: List[str], max_workers: Optional[int] = None) -> List[Dict[str, Any]]:
+        """Enhances many requirements. Live API calls are network-bound, so they run
+        concurrently (``LLM_MAX_CONCURRENCY``, default 6); offline generation is fast
+        and stays sequential."""
+        if not texts:
+            return []
+        if not self.is_api_configured():
+            return [self.enhance_requirement(t) for t in texts]
+        workers = max_workers or int(os.getenv("LLM_MAX_CONCURRENCY", "6"))
+        with ThreadPoolExecutor(max_workers=max(1, min(workers, len(texts)))) as pool:
+            return list(pool.map(self.enhance_requirement, texts))
 
     def _call_llm_api(self, requirement: str, rag_context: str) -> Dict[str, Any]:
         """Calls external OpenAI-compatible LLM endpoint."""
@@ -105,10 +117,9 @@ JSON FORMAT:
   "recommendation": "..."
 }}
 """
-        headers = {
-            "Content-Type": "application/json",
-            "Authorization": f"Bearer {self.api_key}" if self.api_key else ""
-        }
+        headers = {"Content-Type": "application/json"}
+        if self.api_key:
+            headers["Authorization"] = f"Bearer {self.api_key}"
         payload = {
             "model": self.model,
             "messages": [

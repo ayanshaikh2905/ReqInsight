@@ -20,6 +20,7 @@ const Artifacts = lazy(() => import('./pages/Artifacts'));
 const Report = lazy(() => import('./pages/Report'));
 const Evaluation = lazy(() => import('./pages/Evaluation'));
 const SettingsPage = lazy(() => import('./pages/SettingsPage'));
+const History = lazy(() => import('./pages/History'));
 
 function NotFound() {
   usePageTitle('Page not found');
@@ -49,6 +50,7 @@ export default function App() {
                 <Route path="/quality" element={<QualityAnalysis />} />
                 <Route path="/artifacts" element={<Artifacts />} />
                 <Route path="/report" element={<Report />} />
+                <Route path="/history" element={<History />} />
                 <Route path="/evaluation" element={<Evaluation />} />
                 <Route path="/settings" element={<SettingsPage />} />
                 <Route path="*" element={<NotFound />} />
