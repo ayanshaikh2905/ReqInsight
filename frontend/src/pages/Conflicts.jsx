@@ -1,70 +1,98 @@
-import { useNavigate } from 'react-router-dom';
-import { AlertTriangle } from 'lucide-react';
+import { useMemo, useState } from 'react';
+import { Link } from 'react-router-dom';
+import { GitMerge } from 'lucide-react';
 import { useAnalysis } from '../context/AnalysisContext';
-import { PageHeader, EmptyState, StatCard } from '../components/Card';
+import { usePageTitle } from '../hooks/usePageTitle';
 import { Badge } from '../components/Badge';
+import { EmptyState, PageHeader } from '../components/Card';
+import { MarkedText } from '../components/MarkedText';
+import { NoAnalysis } from '../components/NoAnalysis';
+
+function Side({ id, text, value }) {
+  return (
+    <div className="min-w-0 p-5">
+      <div className="flex items-center justify-between gap-3">
+        <Link to={`/requirements?focus=${encodeURIComponent(id)}`} className="font-mono text-xs text-accent hover:underline">{id}</Link>
+        {value && <Badge variant="bad">{value}</Badge>}
+      </div>
+      <MarkedText text={text || 'Requirement text unavailable.'} terms={value ? [value] : []} tone="bad" className="mt-2 text-sm leading-relaxed text-ink" />
+    </div>
+  );
+}
 
 export default function Conflicts() {
+  usePageTitle('Conflicts');
   const { analysis } = useAnalysis();
-  const navigate = useNavigate();
+  const [type, setType] = useState('all');
+  const conflicts = useMemo(() => analysis?.conflicts || [], [analysis]);
+
+  const types = useMemo(() => {
+    const counts = new Map();
+    conflicts.forEach((c) => counts.set(c.conflict_type, (counts.get(c.conflict_type) || 0) + 1));
+    return [...counts.entries()];
+  }, [conflicts]);
 
   if (!analysis) {
     return (
-      <div className="p-6">
-        <EmptyState
-          icon={AlertTriangle}
-          title="No analysis data"
-          description="Load a demo SRS or upload a document first."
-          action={<button onClick={() => navigate('/upload')} className="px-4 py-2 rounded-lg bg-indigo-600 text-white text-sm">Go to Upload</button>}
-        />
-      </div>
+      <>
+        <PageHeader title="Conflicts" subtitle="Requirements that cannot both be satisfied." />
+        <NoAnalysis icon={GitMerge} what="conflicts" />
+      </>
     );
   }
 
-  const conflicts = analysis.conflicts || [];
+  const shown = type === 'all' ? conflicts : conflicts.filter((c) => c.conflict_type === type);
 
   return (
-    <div className="p-6 space-y-6 max-w-5xl">
+    <>
       <PageHeader
-        title="Conflict Detection"
-        subtitle="Requirements with logical or numerical contradictions identified by rule-based conflict analysis"
+        title="Conflicts"
+        subtitle="Pairs of requirements that contradict each other, such as different limits for the same attribute."
       />
 
-      <StatCard icon={AlertTriangle} label="Conflict Pairs Found" value={conflicts.length} color="red" />
-
       {conflicts.length === 0 ? (
-        <div className="flex flex-col items-center py-16 text-center">
-          <div className="w-16 h-16 rounded-full bg-emerald-900/30 flex items-center justify-center mb-4">
-            <AlertTriangle className="w-8 h-8 text-emerald-400" />
-          </div>
-          <h3 className="text-base font-semibold text-emerald-300 mb-2">No Conflicts Detected</h3>
-          <p className="text-sm text-slate-400">No logical contradictions found between the requirements.</p>
-        </div>
+        <EmptyState icon={GitMerge} title="No conflicts detected" description="No two requirements in this document contradict each other." />
       ) : (
-        <div className="space-y-3">
-          {conflicts.map((c, i) => {
-            const desc = c.explanation || c.conflict_type || 'Contradiction';
-            return (
-              <div key={i} className="bg-slate-900 border border-red-800/40 rounded-xl overflow-hidden">
-                <div className="px-4 py-2.5 flex items-center gap-2 border-b border-slate-800 bg-red-950/20">
-                  <AlertTriangle className="w-4 h-4 text-red-400" />
-                  <span className="text-xs font-bold text-red-300">{desc}</span>
-                  {c.attribute && <Badge variant="danger">{c.attribute}</Badge>}
+        <>
+          {types.length > 1 && (
+            <div className="mb-5 flex flex-wrap gap-2" role="group" aria-label="Filter by conflict type">
+              {[['all', conflicts.length], ...types].map(([key, n]) => (
+                <button
+                  key={key}
+                  type="button"
+                  onClick={() => setType(key)}
+                  aria-pressed={type === key}
+                  className={`flex h-8 items-center gap-2 rounded-lg border px-3 text-xs font-medium transition-colors ${
+                    type === key ? 'border-accent/50 bg-accent/10 text-accent' : 'border-line text-muted hover:border-faint hover:text-ink'
+                  }`}
+                >
+                  {key === 'all' ? 'All conflicts' : key}
+                  <span className="font-mono text-faint">{n}</span>
+                </button>
+              ))}
+            </div>
+          )}
+
+          <ul className="space-y-3">
+            {shown.map((c) => (
+              <li key={`${c.req_a_id}-${c.req_b_id}-${c.attribute}`} className="overflow-hidden rounded-xl border border-line bg-surface">
+                <div className="flex flex-wrap items-center gap-2 border-b border-line bg-bad/5 px-5 py-3">
+                  <Badge variant="bad">{c.conflict_type || 'Contradiction'}</Badge>
+                  {c.attribute && <Badge>{c.attribute}</Badge>}
+                  {typeof c.confidence === 'number' && (
+                    <span className="ml-auto text-xs text-faint">{Math.round(c.confidence * 100)}% confidence</span>
+                  )}
                 </div>
-                <div className="p-4 grid md:grid-cols-2 gap-4">
-                  {[[c.req_a_id, c.req_a_text, c.value_a], [c.req_b_id, c.req_b_text, c.value_b]].map(([id, text, value], j) => (
-                    <div key={j} className="rounded-lg bg-slate-800 p-3 space-y-1.5">
-                      <span className="text-xs font-mono font-bold text-indigo-400">{id || `Req ${j + 1}`}</span>
-                      {value && <div className="text-xs text-red-300">Value: {value}</div>}
-                      <p className="text-sm text-slate-200">{text || 'N/A'}</p>
-                    </div>
-                  ))}
+                <div className="grid divide-y divide-line md:grid-cols-2 md:divide-x md:divide-y-0">
+                  <Side id={c.req_a_id} text={c.req_a_text} value={c.value_a} />
+                  <Side id={c.req_b_id} text={c.req_b_text} value={c.value_b} />
                 </div>
-              </div>
-            );
-          })}
-        </div>
+                {c.explanation && <p className="border-t border-line px-5 py-3 text-sm text-muted">{c.explanation}</p>}
+              </li>
+            ))}
+          </ul>
+        </>
       )}
-    </div>
+    </>
   );
 }

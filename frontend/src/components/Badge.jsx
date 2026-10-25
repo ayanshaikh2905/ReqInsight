@@ -1,30 +1,44 @@
-export function Badge({ variant = 'default', children, className = '' }) {
-  const variants = {
-    default: 'bg-slate-700 text-slate-300',
-    functional: 'bg-emerald-900/60 text-emerald-400 border border-emerald-800',
-    nonfunctional: 'bg-purple-900/60 text-purple-400 border border-purple-800',
-    danger: 'bg-red-900/60 text-red-400 border border-red-800',
-    warning: 'bg-amber-900/60 text-amber-400 border border-amber-800',
-    info: 'bg-sky-900/60 text-sky-400 border border-sky-800',
-    success: 'bg-emerald-900/60 text-emerald-400 border border-emerald-800',
-    indigo: 'bg-indigo-900/60 text-indigo-400 border border-indigo-800',
-  };
+import { TONE, toneForScore } from '../lib/quality';
+
+// Older call sites used descriptive variant names; map them onto semantic tones.
+const ALIASES = {
+  default: 'neutral',
+  functional: 'ok',
+  nonfunctional: 'info',
+  danger: 'bad',
+  warning: 'warn',
+  amber: 'warn',
+  success: 'ok',
+  indigo: 'accent',
+};
+
+export function Badge({ variant = 'neutral', children, className = '', title }) {
+  const tone = TONE[ALIASES[variant] || variant] || TONE.neutral;
   return (
-    <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${variants[variant] || variants.default} ${className}`}>
+    <span
+      title={title}
+      className={`inline-flex items-center gap-1 whitespace-nowrap rounded-md border px-1.5 py-0.5 text-xs font-medium leading-4 ${tone.soft} ${className}`}
+    >
       {children}
     </span>
   );
 }
 
-export function ScoreBadge({ score }) {
-  const color = score >= 85 ? 'text-emerald-400' : score >= 65 ? 'text-amber-400' : 'text-red-400';
-  return <span className={`font-bold text-sm ${color}`}>{score}/100</span>;
+export function ScoreBadge({ score, className = '' }) {
+  const tone = TONE[toneForScore(score)];
+  return (
+    <span className={`font-mono text-xs tabular-nums ${className}`} title={`Quality score ${score} out of 100`}>
+      <span className={`font-medium ${tone.text}`}>{score}</span>
+      <span className="text-faint">/100</span>
+    </span>
+  );
 }
 
 export function TypeBadge({ type }) {
+  const functional = type === 'Functional';
   return (
-    <Badge variant={type === 'Functional' ? 'functional' : 'nonfunctional'}>
-      {type === 'Functional' ? '⚡ F' : '🔧 NF'}
+    <Badge variant={functional ? 'ok' : 'info'} title={type}>
+      {functional ? 'FR' : 'NFR'}
     </Badge>
   );
 }

@@ -2,26 +2,174 @@
 @tailwind components;
 @tailwind utilities;
 
+/* ---------------------------------------------------------------
+   Design tokens. Colours are stored as RGB triplets so Tailwind can
+   apply opacity modifiers (bg-accent/20) to every semantic colour.
+   --------------------------------------------------------------- */
+:root,
+:root[data-theme='dark'] {
+  color-scheme: dark;
+  --c-canvas: 20 23 29;
+  --c-surface: 27 31 38;
+  --c-raised: 36 41 50;
+  --c-line: 46 52 63;
+  --c-ink: 233 231 226;
+  --c-muted: 154 161 173;
+  --c-faint: 108 116 129;
+  --c-accent: 125 160 255;
+  --c-on-accent: 14 18 30;
+  --c-ok: 74 204 152;
+  --c-warn: 240 184 64;
+  --c-bad: 255 107 107;
+  --c-info: 98 195 235;
+}
+
+:root[data-theme='light'] {
+  color-scheme: light;
+  --c-canvas: 243 244 246;
+  --c-surface: 255 255 255;
+  --c-raised: 248 249 251;
+  --c-line: 222 225 231;
+  --c-ink: 20 23 29;
+  --c-muted: 91 99 112;
+  --c-faint: 133 141 153;
+  --c-accent: 52 88 232;
+  --c-on-accent: 255 255 255;
+  --c-ok: 14 128 88;
+  --c-warn: 154 92 0;
+  --c-bad: 200 40 52;
+  --c-info: 10 114 164;
+}
+
 @layer base {
   body {
-    @apply bg-slate-950 text-slate-100 antialiased font-sans min-h-screen selection:bg-indigo-500 selection:text-white;
-    font-feature-settings: "cv02", "cv03", "cv04", "cv11";
+    @apply bg-canvas font-sans text-ink antialiased;
+    font-size: 14px;
+    line-height: 1.55;
+  }
+  h1, h2, h3 { text-wrap: balance; }
+  p { text-wrap: pretty; }
+  button { cursor: pointer; }
+  button:disabled { cursor: not-allowed; }
+  input, select, textarea { font: inherit; }
+  ::selection { background: rgb(var(--c-accent) / 0.35); }
+  :focus-visible {
+    outline: 2px solid rgb(var(--c-accent));
+    outline-offset: 2px;
+  }
+  * { scrollbar-width: thin; scrollbar-color: rgb(var(--c-line)) transparent; }
+  ::-webkit-scrollbar { width: 10px; height: 10px; }
+  ::-webkit-scrollbar-thumb {
+    background: rgb(var(--c-line));
+    border-radius: 999px;
+    border: 2px solid transparent;
+    background-clip: content-box;
   }
 }
 
-/* Custom scrollbars */
-::-webkit-scrollbar {
-  width: 8px;
-  height: 8px;
+/* ---------------------------------------------------------------
+   Motion. One orchestrated reveal on the dashboard, plus motion that
+   answers a user action. Everything is disabled for reduced motion.
+   --------------------------------------------------------------- */
+@keyframes route-in {
+  from { opacity: 0; transform: translateY(6px); }
+  to { opacity: 1; transform: none; }
 }
-::-webkit-scrollbar-track {
-  background: #0f172a;
+@keyframes bar-rise {
+  from { transform: scaleY(0.08); opacity: 0; }
+  to { transform: scaleY(1); opacity: 1; }
 }
-::-webkit-scrollbar-thumb {
-  background: #334155;
-  border-radius: 4px;
+@keyframes bar-run {
+  from { transform: scaleX(0); }
+  to { transform: scaleX(1); }
 }
-::-webkit-scrollbar-thumb:hover {
-  background: #475569;
+@keyframes ghost-breathe {
+  0%, 100% { opacity: 0.18; transform: scaleY(0.82); }
+  50% { opacity: 0.4; transform: scaleY(1); }
+}
+@keyframes scan {
+  from { transform: translateY(-4px); }
+  to { transform: translateY(var(--scan-distance, 160px)); }
+}
+@keyframes line-lit {
+  0%, 100% { background-color: rgb(var(--c-line)); }
+  8%, 22% { background-color: rgb(var(--c-accent) / 0.55); }
+  40% { background-color: rgb(var(--c-line)); }
+}
+@keyframes marker-sweep {
+  to { background-size: 100% 100%; }
+}
+@keyframes pop-in {
+  0% { transform: scale(0.6); opacity: 0; }
+  70% { transform: scale(1.12); }
+  100% { transform: scale(1); opacity: 1; }
+}
+@keyframes toast-in {
+  from { opacity: 0; transform: translateY(10px) scale(0.98); }
+  to { opacity: 1; transform: none; }
+}
+@keyframes row-flash {
+  0% { box-shadow: 0 0 0 0 rgb(var(--c-accent) / 0.55); }
+  100% { box-shadow: 0 0 0 10px rgb(var(--c-accent) / 0); }
+}
+@keyframes shimmer {
+  from { background-position: 200% 0; }
+  to { background-position: -200% 0; }
+}
+@keyframes march {
+  to { stroke-dashoffset: -24; }
+}
+@keyframes stage-pulse {
+  0%, 100% { box-shadow: 0 0 0 0 rgb(var(--c-accent) / 0.5); }
+  50% { box-shadow: 0 0 0 5px rgb(var(--c-accent) / 0); }
 }
 
+.route-enter { animation: route-in 280ms var(--ease-out, cubic-bezier(0.16, 1, 0.3, 1)) both; }
+.bar-rise { transform-origin: bottom; animation: bar-rise 640ms cubic-bezier(0.16, 1, 0.3, 1) both; }
+.bar-run { transform-origin: left; animation: bar-run 900ms cubic-bezier(0.16, 1, 0.3, 1) both; }
+.ghost-bar { transform-origin: bottom; animation: ghost-breathe 3.2s ease-in-out infinite; }
+.pop-in { animation: pop-in 360ms cubic-bezier(0.34, 1.56, 0.64, 1) both; }
+.toast-in { animation: toast-in 240ms cubic-bezier(0.16, 1, 0.3, 1) both; }
+.row-flash { animation: row-flash 1100ms ease-out 1; }
+.stage-active { animation: stage-pulse 1.4s ease-out infinite; }
+
+.skeleton {
+  background: linear-gradient(90deg, rgb(var(--c-line) / 0.5) 25%, rgb(var(--c-line) / 0.9) 50%, rgb(var(--c-line) / 0.5) 75%);
+  background-size: 200% 100%;
+  animation: shimmer 1.6s linear infinite;
+}
+
+/* Highlighter-pen treatment for ambiguous wording inside a requirement. */
+.marker {
+  color: inherit;
+  padding: 0 0.12em;
+  border-radius: 3px;
+  background-color: transparent; /* override the browser's yellow <mark> */
+  background-image: linear-gradient(rgb(var(--c-warn) / 0.38), rgb(var(--c-warn) / 0.38));
+  background-repeat: no-repeat;
+  background-size: 0% 100%;
+  animation: marker-sweep 700ms cubic-bezier(0.16, 1, 0.3, 1) 180ms forwards;
+}
+
+.marker-bad { background-image: linear-gradient(rgb(var(--c-bad) / 0.34), rgb(var(--c-bad) / 0.34)); }
+
+.dash-march rect { stroke-dasharray: 8 6; }
+.dash-march[data-active='true'] rect { animation: march 700ms linear infinite; }
+
+/* Theme switch: briefly animate colours so the swap is not a hard cut. */
+html.theme-switching *,
+html.theme-switching *::before,
+html.theme-switching *::after {
+  transition: background-color 240ms ease, border-color 240ms ease, color 240ms ease, fill 240ms ease, stroke 240ms ease !important;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    animation-delay: 0ms !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+  .marker { background-size: 100% 100%; }
+}

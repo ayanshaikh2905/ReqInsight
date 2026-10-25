@@ -1,280 +1,347 @@
-import { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { Search, Filter, ChevronDown, ChevronUp, Sparkles, BookOpen, Check } from 'lucide-react';
+import { useDeferredValue, useEffect, useMemo, useRef, useState } from 'react';
+import { useSearchParams } from 'react-router-dom';
+import { ChevronDown, FileText, Search, X } from 'lucide-react';
 import { useAnalysis } from '../context/AnalysisContext';
-import { PageHeader, EmptyState, Spinner } from '../components/Card';
-import { Badge, TypeBadge, ScoreBadge } from '../components/Badge';
-import { api } from '../api/client';
-import { Upload } from 'lucide-react';
+import { usePageTitle } from '../hooks/usePageTitle';
+import { ArtifactPanel } from '../components/ArtifactPanel';
+import { Badge, ScoreBadge, TypeBadge } from '../components/Badge';
+import { Button } from '../components/Button';
+import { EmptyState, PageHeader } from '../components/Card';
+import { Collapse } from '../components/Collapse';
+import { MarkedText } from '../components/MarkedText';
+import { NoAnalysis } from '../components/NoAnalysis';
+import { Segmented } from '../components/Segmented';
+import { ScoreBars } from '../components/ScoreBars';
+import { DIMENSIONS, TONE, bandFor } from '../lib/quality';
 
-function RequirementRow({ req, hasDuplicate }) {
-  const [expanded, setExpanded] = useState(false);
-  const [artifact, setArtifact] = useState(null);
-  const [artifactError, setArtifactError] = useState(null);
-  const [loading, setLoading] = useState(false);
+const SEVERITY_TONE = { danger: 'bad', warning: 'warn', info: 'info' };
 
-  const generate = async (type) => {
-    setLoading(type);
-    setArtifactError(null);
-    try {
-      let result;
-      if (type === 'rewrite') result = await api.rewrite(req.text);
-      else if (type === 'story') result = await api.generateUserStory(req.text);
-      else result = await api.generateAcceptanceCriteria(req.text);
-      setArtifact({ type, data: result });
-    } catch (e) {
-      setArtifactError(e.message);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const smells = req.smells || [];
-
+function Section({ title, children }) {
   return (
-    <div className="border border-slate-800 rounded-xl overflow-hidden">
-      {/* Header row */}
-      <div
-        className="flex items-center gap-3 px-4 py-3 cursor-pointer hover:bg-slate-800/50 transition-colors"
-        onClick={() => setExpanded(!expanded)}
-      >
-        <span className="text-xs font-mono font-bold text-indigo-400 w-24 flex-shrink-0">{req.id}</span>
-        <TypeBadge type={req.type} />
-        <p className="flex-1 text-sm text-slate-300 truncate">{req.text}</p>
-        <div className="flex items-center gap-2 flex-shrink-0">
-          {req.is_ambiguous && <Badge variant="warning">Ambiguous</Badge>}
-          {req.is_incomplete && <Badge variant="danger">Incomplete</Badge>}
-          {req.potential_conflicts?.length > 0 && <Badge variant="danger">Conflict</Badge>}
-          {hasDuplicate && <Badge variant="warning">Duplicate</Badge>}
-          <ScoreBadge score={req.quality_score} />
-          {expanded ? <ChevronUp className="w-4 h-4 text-slate-500" /> : <ChevronDown className="w-4 h-4 text-slate-500" />}
-        </div>
-      </div>
-
-      {/* Expanded detail */}
-      {expanded && (
-        <div className="px-4 pb-4 pt-2 bg-slate-900 border-t border-slate-800 space-y-4">
-          {/* Full text */}
-          <div>
-            <p className="text-xs font-medium text-slate-500 mb-1">Full Requirement Text</p>
-            <p className="text-sm text-slate-200 leading-relaxed">{req.text}</p>
-          </div>
-
-          {/* Metadata grid */}
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-xs">
-            <div className="bg-slate-800 rounded-lg p-2">
-              <div className="text-slate-500 mb-1">Confidence</div>
-                <div className="font-semibold text-white">{((req.confidence || 0) * 100).toFixed(1)}%</div>
-            </div>
-            <div className="bg-slate-800 rounded-lg p-2">
-              <div className="text-slate-500 mb-1">Ambiguity Flags</div>
-              <div className="font-semibold text-white">{req.ambiguous_terms?.length || 0}</div>
-            </div>
-            <div className="bg-slate-800 rounded-lg p-2">
-              <div className="text-slate-500 mb-1">Smells</div>
-              <div className="font-semibold text-white">{smells.length}</div>
-            </div>
-            <div className="bg-slate-800 rounded-lg p-2">
-              <div className="text-slate-500 mb-1">Entities</div>
-              <div className="font-semibold text-white">{req.entities?.length || 0}</div>
-            </div>
-          </div>
-
-          {/* Smells */}
-          {smells.length > 0 && (
-            <div>
-              <p className="text-xs font-medium text-slate-500 mb-2">Detected Smells</p>
-              <div className="flex flex-wrap gap-1.5">
-                {smells.map((s, i) => <Badge key={i} variant="warning">{s.smell || s}</Badge>)}
-              </div>
-            </div>
-          )}
-
-          {/* Entities */}
-          {req.entities?.length > 0 && (
-            <div>
-              <p className="text-xs font-medium text-slate-500 mb-2">Extracted Entities (NER)</p>
-              <div className="flex flex-wrap gap-1.5">
-                {req.entities.map((e, i) => (
-                  <span key={i} className="text-xs bg-sky-900/40 border border-sky-800 text-sky-300 px-2 py-0.5 rounded-full">
-                    {e.text} <span className="opacity-60">({e.label})</span>
-                  </span>
-                ))}
-              </div>
-            </div>
-          )}
-
-          {/* Ambiguity flags */}
-          {req.ambiguous_terms?.length > 0 && (
-            <div>
-              <p className="text-xs font-medium text-amber-500 mb-2">⚠ Ambiguity Flags</p>
-              <div className="flex flex-wrap gap-1.5">
-                {req.ambiguous_terms.map((f, i) => <Badge key={i} variant="warning">{f}</Badge>)}
-              </div>
-            </div>
-          )}
-
-          {/* Incompleteness flags */}
-          {req.missing_elements?.length > 0 && (
-            <div>
-              <p className="text-xs font-medium text-red-400 mb-2">🚨 Incompleteness Issues</p>
-              <div className="flex flex-wrap gap-1.5">
-                {req.missing_elements.map((f, i) => <Badge key={i} variant="danger">{f}</Badge>)}
-              </div>
-            </div>
-          )}
-
-          {/* AI generation buttons */}
-          <div className="flex gap-2 pt-2 border-t border-slate-800 flex-wrap">
-            <button
-              onClick={() => generate('rewrite')}
-              disabled={!!loading}
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-indigo-900/40 border border-indigo-800 text-indigo-400 text-xs font-medium hover:bg-indigo-900/60 transition-colors disabled:opacity-50"
-            >
-              {loading === 'rewrite' ? <Spinner size="sm" /> : <Sparkles className="w-3 h-3" />} Rewrite
-            </button>
-            <button
-              onClick={() => generate('story')}
-              disabled={!!loading}
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-purple-900/40 border border-purple-800 text-purple-400 text-xs font-medium hover:bg-purple-900/60 transition-colors disabled:opacity-50"
-            >
-              {loading === 'story' ? <Spinner size="sm" /> : <BookOpen className="w-3 h-3" />} User Story
-            </button>
-            <button
-              onClick={() => generate('ac')}
-              disabled={!!loading}
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-emerald-900/40 border border-emerald-800 text-emerald-400 text-xs font-medium hover:bg-emerald-900/60 transition-colors disabled:opacity-50"
-            >
-              {loading === 'ac' ? <Spinner size="sm" /> : <Check className="w-3 h-3" />} Acceptance Criteria
-            </button>
-          </div>
-
-          {artifactError && <p className="text-xs text-red-400">{artifactError}</p>}
-
-          {/* Artifact display */}
-          {artifact && (
-            <div className="mt-2 p-3 rounded-lg bg-slate-800 border border-slate-700 text-sm text-slate-200 whitespace-pre-wrap font-mono leading-relaxed">
-              {artifact.type === 'story' && artifact.data?.user_story && (
-                <div>
-                  <span className="text-purple-400 font-semibold">User Story: </span>
-                  {artifact.data.user_story}
-                  {artifact.data.acceptance_criteria?.length > 0 && (
-                    <div className="mt-2">
-                      <span className="text-emerald-400 font-semibold">Acceptance Criteria:</span>
-                      <ul className="mt-1 space-y-1 list-disc list-inside text-slate-300">
-                        {artifact.data.acceptance_criteria.map((c, i) => <li key={i}>{c}</li>)}
-                      </ul>
-                    </div>
-                  )}
-                </div>
-              )}
-              {artifact.type === 'ac' && (
-                <div>
-                  <span className="text-emerald-400 font-semibold">Acceptance Criteria:</span>
-                  <ul className="mt-1 space-y-1 list-disc list-inside text-slate-300">
-                    {(artifact.data?.acceptance_criteria || []).map((c, i) => <li key={i}>{c}</li>)}
-                  </ul>
-                </div>
-              )}
-              {artifact.type === 'rewrite' && (
-                <div>
-                  <span className="text-indigo-400 font-semibold">Rewritten: </span>
-                  {artifact.data?.improved_text || artifact.data?.rewritten || JSON.stringify(artifact.data)}
-                </div>
-              )}
-            </div>
-          )}
-        </div>
-      )}
+    <div>
+      <h4 className="mb-2 text-xs font-medium text-faint">{title}</h4>
+      {children}
     </div>
   );
 }
 
+function RequirementRow({ req, open, onToggle, flash, duplicate, onFocusRelated }) {
+  const tone = TONE[bandFor(req.quality_score).tone];
+  const scores = req.scores || {};
+  const dims = DIMENSIONS.filter((d) => typeof scores[d] === 'number');
+  const notes = [req.ambiguity_explanation, req.incompleteness_explanation, ...String(req.recommendation || '').split(/\r?\n/)]
+    .map((n) => n && n.trim())
+    .filter(Boolean);
+  const panelId = `panel-${req.id}`;
+
+  return (
+    <div
+      id={`req-${req.id}`}
+      className={`relative scroll-mt-28 overflow-hidden rounded-xl border bg-surface transition-colors ${
+        open ? 'border-faint/60' : 'border-line'
+      } ${flash ? 'row-flash' : ''}`}
+    >
+      <span className={`absolute inset-y-0 left-0 w-1 ${tone.bg}`} aria-hidden="true" />
+      <button
+        type="button"
+        aria-expanded={open}
+        aria-controls={panelId}
+        onClick={onToggle}
+        className="flex w-full items-start gap-3 py-3.5 pl-5 pr-4 text-left transition-colors hover:bg-raised/70"
+      >
+        <span className="w-24 shrink-0 pt-px font-mono text-xs text-accent">{req.id}</span>
+        <TypeBadge type={req.type} />
+        <span className={`min-w-0 flex-1 text-sm text-ink ${open ? '' : 'truncate'}`}>{req.text}</span>
+        <span className="hidden shrink-0 items-center gap-1.5 md:flex">
+          {req.is_ambiguous && <Badge variant="warn">Ambiguous</Badge>}
+          {req.is_incomplete && <Badge variant="warn">Incomplete</Badge>}
+          {req.potential_conflicts?.length > 0 && <Badge variant="bad">Conflict</Badge>}
+          {duplicate && <Badge variant="info">Duplicate</Badge>}
+        </span>
+        <ScoreBadge score={req.quality_score} className="shrink-0 pt-px" />
+        <ChevronDown className={`mt-0.5 h-4 w-4 shrink-0 text-faint transition-transform duration-300 ${open ? 'rotate-180' : ''}`} aria-hidden="true" />
+      </button>
+
+      <Collapse open={open} id={panelId}>
+        <div className="space-y-6 border-t border-line px-5 pb-5 pt-5 md:pl-[8.25rem]">
+          <MarkedText text={req.text} terms={req.ambiguous_terms || []} className="max-w-prose text-[15px] leading-relaxed text-ink" />
+
+          {notes.length > 0 && (
+            <ul className="max-w-prose list-disc space-y-1 pl-5 text-sm text-muted">
+              {notes.map((n, i) => <li key={i}>{n}</li>)}
+            </ul>
+          )}
+
+          {dims.length > 0 && (
+            <Section title="Score breakdown">
+              <ScoreBars scores={scores} className="max-w-xl" />
+            </Section>
+          )}
+
+          {req.smells?.length > 0 && (
+            <Section title="Smells">
+              <ul className="space-y-1.5">
+                {req.smells.map((s, i) => (
+                  <li key={i} className="flex items-start gap-2 text-sm">
+                    <Badge variant={SEVERITY_TONE[s.severity] || 'warn'}>{s.smell || String(s)}</Badge>
+                    {s.description && <span className="text-muted">{s.description}</span>}
+                  </li>
+                ))}
+              </ul>
+            </Section>
+          )}
+
+          {req.missing_elements?.length > 0 && (
+            <Section title="Missing elements">
+              <div className="flex flex-wrap gap-1.5">
+                {req.missing_elements.map((m, i) => <Badge key={i} variant="warn">{m}</Badge>)}
+              </div>
+            </Section>
+          )}
+
+          {(req.potential_conflicts?.length > 0 || req.similar_requirements?.length > 0) && (
+            <Section title="Related requirements">
+              <ul className="space-y-1.5 text-sm">
+                {req.potential_conflicts?.map((c, i) => (
+                  <li key={`c${i}`} className="flex flex-wrap items-baseline gap-2">
+                    <Badge variant="bad">Conflict</Badge>
+                    <button type="button" onClick={() => onFocusRelated(c.target_id)} className="font-mono text-xs text-accent hover:underline">{c.target_id}</button>
+                    <span className="text-muted">{c.explanation}</span>
+                  </li>
+                ))}
+                {req.similar_requirements?.map((s, i) => (
+                  <li key={`s${i}`} className="flex flex-wrap items-baseline gap-2">
+                    <Badge variant={s.is_duplicate ? 'info' : 'neutral'}>{s.is_duplicate ? 'Duplicate' : 'Similar'}</Badge>
+                    <button type="button" onClick={() => onFocusRelated(s.target_id)} className="font-mono text-xs text-accent hover:underline">{s.target_id}</button>
+                    <span className="text-muted">{Math.round(s.similarity * 100)}% match</span>
+                  </li>
+                ))}
+              </ul>
+            </Section>
+          )}
+
+          {req.entities?.length > 0 && (
+            <Section title="Entities">
+              <div className="flex flex-wrap gap-1.5">
+                {req.entities.map((e, i) => (
+                  <span key={i} title={e.explanation} className="rounded-md border border-line px-2 py-0.5 text-xs text-muted">
+                    {e.text} <span className="text-faint">{e.category?.toLowerCase()}</span>
+                  </span>
+                ))}
+              </div>
+            </Section>
+          )}
+
+          <Section title="Generate">
+            <ArtifactPanel text={req.text} />
+          </Section>
+        </div>
+      </Collapse>
+    </div>
+  );
+}
+
+const TYPE_FILTERS = ['all', 'functional', 'non-functional'];
+const ISSUE_FILTERS = ['all', 'ambiguous', 'incomplete', 'conflict', 'duplicate'];
+const SORTS = {
+  doc: { label: 'Document order', fn: null },
+  low: { label: 'Lowest quality first', fn: (a, b) => a.quality_score - b.quality_score },
+  high: { label: 'Highest quality first', fn: (a, b) => b.quality_score - a.quality_score },
+};
+
 export default function Requirements() {
+  usePageTitle('Requirements');
   const { analysis } = useAnalysis();
-  const navigate = useNavigate();
-  const [search, setSearch] = useState('');
-  const [filterType, setFilterType] = useState('all');
-  const [filterIssue, setFilterIssue] = useState('all');
+  const [params, setParams] = useSearchParams();
+  const searchRef = useRef(null);
+
+  const query = params.get('q') || '';
+  const type = TYPE_FILTERS.includes(params.get('type')) ? params.get('type') : 'all';
+  const issue = ISSUE_FILTERS.includes(params.get('issue')) ? params.get('issue') : 'all';
+  const sort = SORTS[params.get('sort')] ? params.get('sort') : 'doc';
+  const focusId = params.get('focus');
+
+  const [openIds, setOpenIds] = useState(() => new Set(focusId ? [focusId] : []));
+  const deferredQuery = useDeferredValue(query);
+
+  const setParam = (key, value, fallback = '') =>
+    setParams(
+      (prev) => {
+        const next = new URLSearchParams(prev);
+        if (!value || value === fallback) next.delete(key);
+        else next.set(key, value);
+        return next;
+      },
+      { replace: true },
+    );
+
+  // Deep link (dashboard bars, related-requirement links): open, scroll, flash.
+  const [seenFocus, setSeenFocus] = useState(focusId);
+  if (focusId !== seenFocus) {
+    setSeenFocus(focusId);
+    if (focusId) setOpenIds((prev) => new Set(prev).add(focusId));
+  }
+  useEffect(() => {
+    if (!focusId) return undefined;
+    const t = setTimeout(() => {
+      document.getElementById(`req-${focusId}`)?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }, 150);
+    return () => clearTimeout(t);
+  }, [focusId]);
+
+  // "/" jumps to search, like most list UIs.
+  useEffect(() => {
+    const onKey = (e) => {
+      if (e.key !== '/' || e.metaKey || e.ctrlKey || e.altKey) return;
+      if (/^(input|textarea|select)$/i.test(e.target.tagName) || e.target.isContentEditable) return;
+      e.preventDefault();
+      searchRef.current?.focus();
+    };
+    document.addEventListener('keydown', onKey);
+    return () => document.removeEventListener('keydown', onKey);
+  }, []);
+
+  const all = useMemo(() => analysis?.requirements || [], [analysis]);
+  const duplicateIds = useMemo(
+    () => new Set((analysis?.duplicates || []).flatMap((p) => [p.req_a_id, p.req_b_id])),
+    [analysis],
+  );
+
+  const matchers = useMemo(
+    () => ({
+      type: (r, v) => v === 'all' || r.type.toLowerCase() === v,
+      issue: (r, v) =>
+        v === 'all' ||
+        (v === 'ambiguous' && r.is_ambiguous) ||
+        (v === 'incomplete' && r.is_incomplete) ||
+        (v === 'conflict' && r.potential_conflicts?.length > 0) ||
+        (v === 'duplicate' && duplicateIds.has(r.id)),
+    }),
+    [duplicateIds],
+  );
+
+  const visible = useMemo(() => {
+    const q = deferredQuery.trim().toLowerCase();
+    const list = all.filter(
+      (r) =>
+        matchers.type(r, type) &&
+        matchers.issue(r, issue) &&
+        (!q || r.text.toLowerCase().includes(q) || r.id.toLowerCase().includes(q) || (r.topic || '').toLowerCase().includes(q)),
+    );
+    const fn = SORTS[sort].fn;
+    return fn ? [...list].sort(fn) : list;
+  }, [all, matchers, type, issue, sort, deferredQuery]);
+
+  const count = (key, value) => all.filter((r) => matchers[key](r, value)).length;
+
+  const toggle = (id) =>
+    setOpenIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+
+  const clearFilters = () => setParams(new URLSearchParams(), { replace: true });
+  const filtered = query || type !== 'all' || issue !== 'all';
 
   if (!analysis) {
     return (
-      <div className="p-6">
-        <EmptyState
-          icon={Upload}
-          title="No analysis data"
-          description="Load a demo SRS or upload a document to see requirements."
-          action={<button onClick={() => navigate('/upload')} className="px-4 py-2 rounded-lg bg-indigo-600 text-white text-sm">Go to Upload</button>}
-        />
-      </div>
+      <>
+        <PageHeader title="Requirements" subtitle="Every extracted requirement with its score, issues and generated artifacts." />
+        <NoAnalysis icon={FileText} what="the requirements list" />
+      </>
     );
   }
 
-  const reqs = (analysis.requirements || []).filter(r => {
-    if (filterType !== 'all' && r.type.toLowerCase() !== filterType) return false;
-    if (filterIssue === 'ambiguous' && !r.is_ambiguous) return false;
-    if (filterIssue === 'incomplete' && !r.is_incomplete) return false;
-    if (filterIssue === 'conflict' && !r.potential_conflicts?.length) return false;
-    if (search && !r.text.toLowerCase().includes(search.toLowerCase()) && !r.id.toLowerCase().includes(search.toLowerCase())) return false;
-    return true;
-  });
-  const duplicateIds = new Set(
-    (analysis.duplicates || []).flatMap(pair => [pair.req_a_id, pair.req_b_id])
-  );
-
   return (
-    <div className="p-6 space-y-4 max-w-6xl">
+    <>
       <PageHeader
-        title="Requirements Explorer"
-        subtitle={`${reqs.length} of ${analysis.requirements?.length} requirements shown`}
+        title="Requirements"
+        subtitle={`${visible.length} of ${all.length} requirements${filtered ? ' match your filters' : ''}.`}
+        actions={
+          <Button size="sm" variant="ghost" onClick={() => setOpenIds(openIds.size ? new Set() : new Set(visible.map((r) => r.id)))}>
+            {openIds.size ? 'Collapse all' : 'Expand all'}
+          </Button>
+        }
       />
 
-      {/* Filters */}
-      <div className="flex flex-wrap gap-3">
-        <div className="relative flex-1 min-w-48">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-500" />
-          <input
-            id="req-search"
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            placeholder="Search requirements…"
-            className="w-full pl-9 pr-4 py-2 rounded-lg bg-slate-800 border border-slate-700 text-sm text-slate-200 placeholder:text-slate-500 focus:outline-none focus:border-indigo-600"
-          />
+      <div className="sticky top-0 z-10 -mx-5 mb-5 border-b border-line bg-canvas/95 px-5 py-3 backdrop-blur sm:-mx-8 sm:px-8">
+        <div className="flex flex-wrap items-center gap-3">
+          <div className="relative min-w-[220px] flex-1">
+            <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-faint" aria-hidden="true" />
+            <input
+              ref={searchRef}
+              type="search"
+              value={query}
+              onChange={(e) => setParam('q', e.target.value)}
+              placeholder="Search text, ID or topic  ( / )"
+              aria-label="Search requirements"
+              className="h-10 w-full rounded-lg border border-line bg-surface pl-9 pr-9 text-sm text-ink outline-none transition-colors placeholder:text-faint focus:border-accent [&::-webkit-search-cancel-button]:hidden"
+            />
+            {query && (
+              <button type="button" onClick={() => setParam('q', '')} aria-label="Clear search" className="absolute right-2 top-1/2 -translate-y-1/2 rounded p-1 text-faint hover:text-ink">
+                <X className="h-3.5 w-3.5" />
+              </button>
+            )}
+          </div>
+          <select
+            value={sort}
+            onChange={(e) => setParam('sort', e.target.value, 'doc')}
+            aria-label="Sort requirements"
+            className="h-10 rounded-lg border border-line bg-surface px-3 text-sm text-ink outline-none focus:border-accent"
+          >
+            {Object.entries(SORTS).map(([k, v]) => <option key={k} value={k}>{v.label}</option>)}
+          </select>
         </div>
-        <select
-          id="filter-type"
-          value={filterType}
-          onChange={(e) => setFilterType(e.target.value)}
-          className="px-3 py-2 rounded-lg bg-slate-800 border border-slate-700 text-sm text-slate-200 focus:outline-none focus:border-indigo-600"
-        >
-          <option value="all">All Types</option>
-          <option value="functional">Functional</option>
-          <option value="non-functional">Non-Functional</option>
-        </select>
-        <select
-          id="filter-issue"
-          value={filterIssue}
-          onChange={(e) => setFilterIssue(e.target.value)}
-          className="px-3 py-2 rounded-lg bg-slate-800 border border-slate-700 text-sm text-slate-200 focus:outline-none focus:border-indigo-600"
-        >
-          <option value="all">All Issues</option>
-          <option value="ambiguous">Ambiguous Only</option>
-          <option value="incomplete">Incomplete Only</option>
-          <option value="conflict">Has Conflicts</option>
-        </select>
-        <div className="flex items-center gap-1.5">
-          <Filter className="w-4 h-4 text-slate-500" />
-          <span className="text-xs text-slate-500">{reqs.length} shown</span>
+        <div className="-mb-1 mt-3 flex gap-3 overflow-x-auto pb-1">
+          <Segmented
+            label="Requirement type"
+            value={type}
+            onChange={(v) => setParam('type', v, 'all')}
+            options={[
+              { value: 'all', label: 'All', count: all.length },
+              { value: 'functional', label: 'Functional', count: count('type', 'functional') },
+              { value: 'non-functional', label: 'Non-functional', count: count('type', 'non-functional') },
+            ]}
+          />
+          <Segmented
+            label="Issue"
+            value={issue}
+            onChange={(v) => setParam('issue', v, 'all')}
+            options={[
+              { value: 'all', label: 'Any issue' },
+              { value: 'ambiguous', label: 'Ambiguous', count: count('issue', 'ambiguous') },
+              { value: 'incomplete', label: 'Incomplete', count: count('issue', 'incomplete') },
+              { value: 'conflict', label: 'Conflict', count: count('issue', 'conflict') },
+              { value: 'duplicate', label: 'Duplicate', count: count('issue', 'duplicate') },
+            ]}
+          />
         </div>
       </div>
 
-      {/* List */}
-      <div className="space-y-2">
-        {reqs.map(req => <RequirementRow key={req.id} req={req} hasDuplicate={duplicateIds.has(req.id)} />)}
-        {reqs.length === 0 && (
-          <div className="text-center py-16 text-slate-500">No requirements match your filters.</div>
-        )}
-      </div>
-    </div>
+      {visible.length === 0 ? (
+        <EmptyState
+          icon={Search}
+          title="No requirements match"
+          description="Try a different search term, or clear the filters to see everything."
+          action={<Button onClick={clearFilters}>Clear filters</Button>}
+        />
+      ) : (
+        <div className="space-y-2.5">
+          {visible.map((req) => (
+            <RequirementRow
+              key={req.id}
+              req={req}
+              open={openIds.has(req.id)}
+              onToggle={() => toggle(req.id)}
+              flash={focusId === req.id}
+              duplicate={duplicateIds.has(req.id)}
+              onFocusRelated={(id) => setParams({ focus: id }, { replace: true })}
+            />
+          ))}
+        </div>
+      )}
+    </>
   );
 }
