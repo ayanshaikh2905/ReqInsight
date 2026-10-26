@@ -8,7 +8,7 @@ This document describes the NLP and Large Language Model architecture used in th
 
 | Component | Default Architecture | Hugging Face / Source | Operational Role | Fallback Mode |
 | :--- | :--- | :--- | :--- | :--- |
-| **Requirement Classifier** | DeBERTa-v3 / TF-IDF Calibrated SGD | `microsoft/deberta-v3-small` / scikit-learn | Functional vs Non-Functional Classification | In-memory calibrated linear model trained on PROMISE NFR |
+| **Requirement Classifier** | TF-IDF (word 1-2 grams) + Complement Naive Bayes | scikit-learn, trained on PROMISE_exp (969 requirements) | Functional vs Non-Functional, plus 11 NFR categories | Audited attribute rules for a few fixed patterns (e.g. response time) |
 | **Semantic Similarity & Embeddings** | Sentence-BERT | `sentence-transformers/all-MiniLM-L6-v2` | Dense requirement embeddings, duplicate detection, clustering | High-dimensional subword TF-IDF cosine vectorizer |
 | **Ambiguity & Smell Engine** | Hybrid Syntactic & Lexical Classifier | Rule-based + Dependency parser | Identifies vague terms, missing bounds, subjective language | Deterministic pattern scanner |
 | **Named Entity Recognition (NER)** | spaCy English Core Model | `en_core_web_sm` + custom rule layers | Extracts ACTOR, SYSTEM, TECH, DATA, ACTION, OBJECT | Rule-based domain pattern matcher |

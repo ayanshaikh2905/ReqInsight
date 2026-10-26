@@ -34,10 +34,10 @@ export function ScoreBadge({ score, className = '' }) {
   );
 }
 
-export function TypeBadge({ type }) {
+export function TypeBadge({ type, category }) {
   const functional = type === 'Functional';
   return (
-    <Badge variant={functional ? 'ok' : 'info'} title={type}>
+    <Badge variant={functional ? 'ok' : 'info'} title={category ? `${type}: ${category}` : type}>
       {functional ? 'FR' : 'NFR'}
     </Badge>
   );
