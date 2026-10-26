@@ -50,7 +50,7 @@ function RequirementRow({ req, open, onToggle, flash, duplicate, onFocusRelated 
         className="flex w-full items-start gap-3 py-3.5 pl-5 pr-4 text-left transition-colors hover:bg-raised/70"
       >
         <span className="w-24 shrink-0 pt-px font-mono text-xs text-accent">{req.id}</span>
-        <TypeBadge type={req.type} />
+        <TypeBadge type={req.type} category={req.nfr_category} />
         <span className={`min-w-0 flex-1 text-sm text-ink ${open ? '' : 'truncate'}`}>{req.text}</span>
         <span className="hidden shrink-0 items-center gap-1.5 md:flex">
           {req.is_ambiguous && <Badge variant="warn">Ambiguous</Badge>}
@@ -71,6 +71,17 @@ function RequirementRow({ req, open, onToggle, flash, duplicate, onFocusRelated 
               {notes.map((n, i) => <li key={i}>{n}</li>)}
             </ul>
           )}
+
+          <Section title="Classification">
+            <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5 text-sm">
+              <span className="text-ink">{req.type}</span>
+              {req.nfr_category && <Badge variant="info">{req.nfr_category}</Badge>}
+              {typeof req.confidence === 'number' && (
+                <span className="font-mono text-xs text-faint">{Math.round(req.confidence * 100)}% confidence</span>
+              )}
+              {req.classification_source && <span className="text-xs text-faint">{req.classification_source}</span>}
+            </div>
+          </Section>
 
           {dims.length > 0 && (
             <Section title="Score breakdown">

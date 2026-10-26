@@ -186,6 +186,8 @@ class AnalysisPipeline:
                 "type": req_type,
                 "confidence": confidence,
                 "classification_source": source,
+                "nfr_category": cls_result.get("nfr_category"),
+                "nfr_category_confidence": cls_result.get("nfr_category_confidence"),
                 "quality_score": score_data["overall_score"],
                 "scores": score_data["scores"],
                 "smells": detected_smells,

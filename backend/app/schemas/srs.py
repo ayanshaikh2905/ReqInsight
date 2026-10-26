@@ -40,6 +40,8 @@ class RequirementItem(BaseModel):
     type: str = "Functional"  # "Functional" or "Non-Functional"
     confidence: float = 0.85
     classification_source: str = "Model prediction"  # Model prediction vs Rule-based
+    nfr_category: Optional[str] = None  # e.g. Security, Usability (Non-Functional only)
+    nfr_category_confidence: Optional[float] = None
     quality_score: int = 75
     scores: Dict[str, int] = Field(default_factory=lambda: {
         "clarity": 70,
@@ -189,11 +191,12 @@ class CorrectedSRSResponse(BaseModel):
 
 class EvaluationMetrics(BaseModel):
     classification: Dict[str, Any]
+    nfr_category: Optional[Dict[str, Any]] = None
     ambiguity: Dict[str, Any]
     duplicates: Dict[str, Any]
     text_generation: Dict[str, Any]
     dataset_info: Dict[str, Any]
-    evaluation_type: str = "Measured on PROMISE & IEEE Benchmark Subsets"
+    evaluation_type: str = "Measured on PROMISE_exp with cross-validation"
 
 
 class SettingsConfig(BaseModel):

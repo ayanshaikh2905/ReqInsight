@@ -45,6 +45,23 @@ npm run build
 
 The frontend uses `VITE_API_URL` when set; otherwise it targets `http://localhost:8000/api`.
 
+## Benchmark
+
+The requirement classifier is trained and evaluated on **PROMISE_exp**: 969 expert-labelled requirements from 47 software projects (Lima et al., SBES 2019), stored in `data/sample/promise_exp.csv`.
+
+```powershell
+py scripts/benchmark.py
+```
+
+This runs 10-fold cross-validation, leave-one-project-out testing, a model comparison and a pipeline speed test, then writes `reports/benchmark/BENCHMARK.md` and `results.json`. The **Evaluation** page shows the same measurements live.
+
+| Task | Test | Result | Majority baseline |
+| :--- | :--- | ---: | ---: |
+| Functional vs Non-Functional | 10-fold cross-validation | 90.0% ± 2.8% accuracy, 89.9% macro F1 | 54.2% |
+| Functional vs Non-Functional | Leave-one-project-out (47 projects) | 80.4% accuracy | 54.2% |
+| Non-Functional category (11 classes) | 5-fold cross-validation | 72.4% accuracy | 23.8% |
+| Full pipeline | 969 requirements in one document | ~12 s | n/a |
+
 ## History & Compare
 
 Every analysis is saved automatically. The **History & Compare** page lists past runs,
